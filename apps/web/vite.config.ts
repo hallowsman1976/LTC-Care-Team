@@ -24,7 +24,7 @@ export default defineConfig({
       workbox: {
         navigateFallback: `${base}index.html`,
         runtimeCaching: [],
-        globPatterns: ['**/*.{js,css,html,svg}']
+        globPatterns: ['**/*.{js,css,html,svg,woff2}']
       }
     })
   ],
