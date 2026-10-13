@@ -4,7 +4,7 @@ compatibility_date = "2026-10-01"
 
 [vars]
 APP_MODE = "DEMO"
-GAS_EXEC_URL = "https://script.google.com/macros/s/REPLACE_ME/exec"
+GAS_EXEC_URL = "https://script.google.com/macros/s/AKfycbyy88DJ-eKDt9mYt2R5Y4y57TC-q73k81tYlFQ23SfWtkz8EyRkozC0ap-2xAEAk4d_/exec"
 
 [[d1_databases]]
 binding = "SECURITY_DB"
