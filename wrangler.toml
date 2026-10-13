@@ -2,6 +2,10 @@ name = "ltc-care-team"
 # Lives at the repository root so Cloudflare Workers Builds' default `npx wrangler deploy` finds it.
 main = "apps/gateway/src/index.ts"
 compatibility_date = "2026-10-01"
+# Serve on <name>.<account>.workers.dev, but do not publish a public preview URL per version:
+# those keep old code (including fixed bugs) reachable.
+workers_dev = true
+preview_urls = false
 
 # The Worker serves the built web app and the API from one origin (the session cookie is
 # __Host- and SameSite=Strict). Only /api/* runs the Worker; everything else is a static asset,
