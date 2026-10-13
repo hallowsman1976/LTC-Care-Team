@@ -21,6 +21,17 @@ describe('setDemoCredential', () => {
     expect(JSON.stringify(records('AuthCredentials'))).not.toContain('second password');
   });
 
+  it('moves an identifier to another user, revoking the credential it pointed to', () => {
+    seed('Users', [{ userId: 'usr-cg-renamed', role: 'CG', enabled: 'true' }]);
+    setDemoCredential('usr-cg', 'cg.demo', 'first password 123');
+    const result = setDemoCredential('usr-cg-renamed', 'cg.demo', 'second password 456');
+    expect(result).toMatchObject({ userId: 'usr-cg-renamed', revokedCredentials: 1 });
+    expect(records('AuthCredentials').map((row) => [row.userId, row.status])).toEqual([['usr-cg', 'REVOKED'], ['usr-cg-renamed', 'ACTIVE']]);
+    const signIn = parseOutput(doPost(signedEvent('auth.passwordVerify', 'anonymous', { identifier: 'cg.demo', password: 'second password 456' })));
+    expect(signIn).toMatchObject({ ok: true, data: { userId: 'usr-cg-renamed' } });
+    expect(records('AuditLogs').at(-1)).toMatchObject({ action: 'credential.set', entityId: 'usr-cg-renamed', reason: 'DEMO_PASSWORD;REVOKED:1' });
+  });
+
   it('refuses outside DEMO, for unknown users and for short passwords', () => {
     expect(() => setDemoCredential('usr-missing', 'x', 'long enough password')).toThrow('USER_NOT_FOUND');
     expect(() => setDemoCredential('usr-cg', 'cg', 'short')).toThrow('PASSWORD_TOO_SHORT');
