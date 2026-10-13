@@ -90,3 +90,21 @@ export function versionedUpdate(name: string, idColumn: string, id: string, expe
   });
 }
 
+
+/** Applies `changes` to every row matching `predicate`; returns how many rows changed. */
+export function updateWhere(name: string, predicate: (row: RowRecord) => boolean, changes: RowRecord): number {
+  return withScriptLock(() => {
+    const sheet = getSheet(name);
+    const values = sheet.getDataRange().getValues();
+    const headers = values[0]?.map(String) ?? [];
+    let changed = 0;
+    values.forEach((row, index) => {
+      if (index === 0) return;
+      const record = Object.fromEntries(headers.map((header, column) => [header, row[column]]));
+      if (!predicate(record)) return;
+      sheet.getRange(index + 1, 1, 1, headers.length).setValues([headers.map((header, column) => changes[header] ?? row[column] ?? '')]);
+      changed += 1;
+    });
+    return changed;
+  });
+}

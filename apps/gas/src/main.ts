@@ -12,6 +12,7 @@ import { resolveIdentity, verifyPassword } from './services/auth';
 import { envelope, jsonOutput } from './utils/responses';
 import { initializeDemoWorkbook as initialize } from './initializer';
 import { runScheduler } from './jobs/schedule';
+import { setDemoCredential as setCredential } from './admin/credentials';
 import { dashboardSummary, listAlerts, listReviews, listVisits } from './services/operations';
 
 // A 5 MB upload is ~6.7 MB as base64, plus the envelope.
@@ -82,3 +83,7 @@ export function runVisitScheduler(): ReturnType<typeof runScheduler> {
   return runScheduler();
 }
 
+
+export function setDemoCredential(userId: string, identifier: string, password: string): ReturnType<typeof setCredential> {
+  return setCredential(userId, identifier, password);
+}

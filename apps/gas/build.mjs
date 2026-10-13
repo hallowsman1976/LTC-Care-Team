@@ -13,6 +13,8 @@ await build({
     js: [
       'function doPost(e) { return SmartLtc.doPost(e); }',
       'function initializeDemoWorkbook() { return SmartLtc.initializeDemoWorkbook(); }',
+      'function initializePilotWorkbook() { return SmartLtc.initializePilotWorkbook(); }',
+      'function setDemoCredential(userId, identifier, password) { return SmartLtc.setDemoCredential(userId, identifier, password); }',
       'function runVisitScheduler() { return SmartLtc.runVisitScheduler(); }'
     ].join('\n')
   }
