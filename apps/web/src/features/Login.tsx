@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Actor } from '@smart-ltc/shared';
-import { api, isDemoMode, post } from '../lib/api';
+import { api, appHref, isDemoMode, post } from '../lib/api';
 import { Button, Card, ErrorState } from '../components/ui';
 
 interface GoogleAccounts {
@@ -31,7 +31,7 @@ function GoogleLogin() {
         callback: async ({ credential }) => {
           try {
             await api<Actor>('/auth/google', { method: 'POST', body: JSON.stringify({ idToken: credential }) });
-            window.location.assign('/');
+            window.location.assign(appHref('/'));
           } catch (reason) {
             setError(reason instanceof Error ? reason.message : 'เข้าสู่ระบบไม่สำเร็จ');
           }
@@ -77,7 +77,7 @@ function DemoPasswordLogin() {
     setError('');
     try {
       await post<Actor>('/auth/password/login', { identifier: form.get('identifier'), password: form.get('password'), totpCode: form.get('totpCode') });
-      window.location.assign('/');
+      window.location.assign(appHref('/'));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'เข้าสู่ระบบไม่สำเร็จ');
     } finally {

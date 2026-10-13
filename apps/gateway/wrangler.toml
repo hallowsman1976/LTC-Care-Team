@@ -2,6 +2,14 @@ name = "smart-ltc-gateway-demo"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 
+# The Worker serves the built web app and the API from one origin (the session cookie is
+# __Host- and SameSite=Strict). Only /api/* runs the Worker; everything else is a static asset,
+# with unknown paths falling back to index.html for client-side routes. Build apps/web first.
+[assets]
+directory = "../web/dist"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
 [vars]
 APP_MODE = "DEMO"
 GAS_EXEC_URL = "https://script.google.com/macros/s/AKfycbyy88DJ-eKDt9mYt2R5Y4y57TC-q73k81tYlFQ23SfWtkz8EyRkozC0ap-2xAEAk4d_/exec"

@@ -31,10 +31,18 @@ The web app proxies `/api` to `127.0.0.1:8787`. In this local setup the role swi
 
 ## Cloudflare demo gateway
 
+The Worker serves both the web app (static assets from `apps/web/dist`) and the API under `/api/*`, on one origin. This is required: the session cookie is `__Host-` and `SameSite=Strict`, and the API has no CORS.
+
 1. Create D1 and KV resources and update IDs in `apps/gateway/wrangler.toml` locally.
 2. Apply `apps/gateway/schema.sql`.
 3. Add secrets using `wrangler secret put`; never write them to `wrangler.toml`.
-4. Deploy only to an isolated DEMO account/domain.
+4. Build and deploy: `pnpm -r build` (builds the web app before the Worker), then `pnpm --filter @smart-ltc/gateway deploy`. Deploy only to an isolated DEMO account/domain.
+
+Static responses get security headers (including the CSP) from `apps/web/public/_headers`.
+
+## GitHub Pages preview
+
+`.github/workflows/pages.yml` publishes a backend-free preview on every push to `main`: synthetic fixtures answered in the browser, validated with the same contracts as the Worker, nothing stored, and a "หน้าตัวอย่าง" banner. Turn it on once under **Settings → Pages → Build and deployment → Source: GitHub Actions**. It is for showing the screens and workflow; sign-in, GAS and real data are only available through the Cloudflare deployment.
 
 ## Real-data pilot
 

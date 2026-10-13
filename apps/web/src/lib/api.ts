@@ -6,6 +6,12 @@ export const appMode = import.meta.env.VITE_APP_MODE === 'PILOT' ? 'PILOT' : 'DE
 export const isDemoMode = appMode === 'DEMO';
 /** The role switcher only works against `wrangler dev` with DEMO_IMPERSONATION; deployed demos sign in. */
 export const isLocalDemo = isDemoMode && import.meta.env.DEV;
+/** GitHub Pages build: no backend, answers come from the in-browser synthetic fixtures. */
+export const isStaticPreview = isDemoMode && import.meta.env.VITE_STATIC_PREVIEW === 'true';
+export const canSwitchDemoRole = isLocalDemo || isStaticPreview;
+
+/** An in-app path including the deployment base (e.g. /LTC-Care-Team/ on GitHub Pages). */
+export const appHref = (path: string) => `${import.meta.env.BASE_URL.replace(/\/$/, '')}${path}`;
 
 export class ApiError extends Error {
   constructor(public code: string, public status: number, message: string) { super(message); }
@@ -20,6 +26,12 @@ export function setDemoRole(role: Lowercase<Role>): void {
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  if (isStaticPreview) {
+    const { previewRespond } = await import('./preview');
+    const { status, body } = previewRespond(path, init, getDemoRole());
+    if (status >= 400 || !body.ok || body.data === null) throw new ApiError(body.code, status, body.message || body.code);
+    return body.data as T;
+  }
   const headers: Record<string, string> = { 'content-type': 'application/json', 'x-ltc-request': '1' };
   if (isLocalDemo) headers['x-demo-role'] = getDemoRole();
   const response = await fetch(`${API_BASE}${path}`, {

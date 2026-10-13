@@ -1,12 +1,7 @@
-import {
-  adlCreateSchema, calculateAdlTotal, carePlanActivateSchema, carePlanCreateSchema, classificationConfirmSchema,
-  encounterReviewSchema, fileUploadSchema, patientCreateSchema, visitSubmitSchema,
-  type Actor, type Capability, type Page
-} from '@smart-ltc/shared';
+import { DEMO_ACTORS, patientCreateSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type Capability, type Page } from '@smart-ltc/shared';
 import type { Env } from './env';
 import { assertOperationalMode, isDemoMode, isLocalDemo } from './env';
 import { isSupportedBrowser } from './browser';
-import { demoActors, demoAlerts, demoDashboard, demoPatients, demoReviews, demoVisits } from './demo';
 import { failure, json } from './responses';
 import { createSession, expiredSessionCookie, loadSession, revokeSession, sessionCookie } from './session';
 import { callGas } from './gasProxy';
@@ -41,56 +36,6 @@ function secure(response: Response): Response {
 
 const ok = <T>(data: T, requestId: string, headers?: HeadersInit) => json(200, { ok: true, code: 'OK', message: '', data, requestId }, headers);
 const has = (actor: Actor, capability: Capability) => actor.capabilities.includes(capability);
-
-interface WriteRoute {
-  action: string;
-  schema: { parse(value: unknown): Record<string, unknown> };
-  allowed: (actor: Actor) => boolean;
-  /** Synthetic result for local demo, after the same validation as the real route. */
-  demo: (input: Record<string, unknown>) => Record<string, unknown>;
-}
-
-// Every write the UI can make, each with its own gateway-side permission check. GAS re-checks
-// permissions and validation; the auth.* actions are deliberately unreachable from here.
-const WRITE_ROUTES: Record<string, WriteRoute> = {
-  '/adl-assessments': {
-    action: 'adl.create', schema: adlCreateSchema, allowed: (actor) => has(actor, 'adl:approve'),
-    demo: (input) => ({ assessmentId: crypto.randomUUID(), status: 'APPROVED', totalScore: calculateAdlTotal(adlCreateSchema.parse(input).items) })
-  },
-  '/ltc-classifications': {
-    action: 'classification.confirm', schema: classificationConfirmSchema, allowed: (actor) => has(actor, 'classification:confirm'),
-    demo: (input) => ({ classId: crypto.randomUUID(), decisionStatus: 'CONFIRMED', groupNumber: input.groupNumber })
-  },
-  '/care-plans': {
-    action: 'carePlan.create', schema: carePlanCreateSchema, allowed: (actor) => has(actor, 'carePlan:approve'),
-    demo: () => ({ carePlanId: crypto.randomUUID(), status: 'DRAFT', recordVersion: 1 })
-  },
-  '/care-plans/activate': {
-    action: 'carePlan.activate', schema: carePlanActivateSchema, allowed: (actor) => has(actor, 'carePlan:approve'),
-    demo: (input) => ({ carePlanId: input.carePlanId, status: 'ACTIVE' })
-  },
-  '/visit-encounters': {
-    action: 'visit.submit', schema: visitSubmitSchema, allowed: (actor) => has(actor, 'patients:read'),
-    demo: (input) => ({ encounterId: crypto.randomUUID(), submissionId: input.submissionId, status: 'SUBMITTED' })
-  },
-  '/encounter-reviews': {
-    action: 'encounter.review', schema: encounterReviewSchema, allowed: (actor) => has(actor, 'encounter:review'),
-    demo: (input) => ({ encounterId: input.encounterId, status: input.decision })
-  },
-  '/visit-files': {
-    action: 'file.upload', schema: fileUploadSchema, allowed: (actor) => has(actor, 'patients:read'),
-    demo: () => ({ fileRecordId: crypto.randomUUID(), scanStatus: 'PENDING_SCAN' })
-  }
-};
-
-type ReadRoute = { action: string; demo: (actor: Actor) => unknown; allowed?: (actor: Actor) => boolean };
-const READ_ROUTES: Record<string, ReadRoute> = {
-  '/dashboard': { action: 'dashboard.summary', demo: () => demoDashboard },
-  '/patients': { action: 'patient.list', demo: demoPatients },
-  '/visits': { action: 'visit.list', demo: () => demoVisits },
-  '/alerts': { action: 'alert.list', demo: () => demoAlerts },
-  '/reviews': { action: 'review.list', demo: () => demoReviews, allowed: (actor) => has(actor, 'encounter:review') }
-};
 
 async function handle(request: Request, env: Env): Promise<Response> {
   assertOperationalMode(env);
@@ -127,7 +72,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
   }
 
   const demoRole = localDemo ? request.headers.get('x-demo-role')?.toLowerCase() : undefined;
-  const demoActor = demoRole ? demoActors[demoRole] : undefined;
+  const demoActor = demoRole ? DEMO_ACTORS[demoRole] : undefined;
   const session = demoActor ? { actor: demoActor, authTime: Date.now() } : await loadSession(request, env);
   if (!session) return failure(401, 'UNAUTHENTICATED', 'กรุณาเข้าสู่ระบบ', requestId);
   const { actor } = session;
@@ -140,14 +85,14 @@ async function handle(request: Request, env: Env): Promise<Response> {
 
   const read = READ_ROUTES[path];
   if (read && request.method === 'GET') {
-    if (read.allowed && !read.allowed(actor)) return failure(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดำเนินการนี้', requestId);
+    if (read.capability && !has(actor, read.capability)) return failure(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดำเนินการนี้', requestId);
     if (localDemo) return ok(read.demo(actor), requestId);
-    return ok(await gasData<unknown>(await callGas(env, actor.userId, read.action, path === '/patients' ? { limit: 50 } : {})), requestId);
+    return ok(await gasData<unknown>(await callGas(env, actor.userId, read.action, read.payload ?? {})), requestId);
   }
 
   const write = WRITE_ROUTES[path];
   if (write && request.method === 'POST') {
-    if (!write.allowed(actor)) return failure(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดำเนินการนี้', requestId);
+    if (!has(actor, write.capability)) return failure(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดำเนินการนี้', requestId);
     const input = write.schema.parse(await request.json());
     if (localDemo) return ok({ demo: true, ...write.demo(input) }, requestId);
     return relayGas(await callGas(env, actor.userId, write.action, input), requestId);

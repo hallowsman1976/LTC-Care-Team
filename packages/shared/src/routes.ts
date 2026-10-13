@@ -1,0 +1,91 @@
+import { calculateAdlTotal } from './adl';
+import {
+  adlCreateSchema, carePlanActivateSchema, carePlanCreateSchema, classificationConfirmSchema,
+  encounterReviewSchema, fileUploadSchema, visitSubmitSchema
+} from './actions';
+import { capabilitiesFor } from './rbac';
+import type { Actor, Capability, Page } from './types';
+
+// The gateway's public route map, shared so the Worker and the static preview build behave the
+// same. `demo` results are synthetic and only ever served without a backend (wrangler dev with
+// DEMO_IMPERSONATION, or the GitHub Pages preview).
+
+const page = <T>(items: T[]): Page<T> => ({ items, hasMore: false });
+
+export const DEMO_ACTORS: Record<string, Actor> = {
+  admin: { userId: 'usr-demo-admin', role: 'ADMIN', capabilities: capabilitiesFor('ADMIN') },
+  cm: { userId: 'usr-demo-cm', role: 'CM', capabilities: capabilitiesFor('CM'), credentialValidUntil: '2099-12-31T00:00:00.000Z' },
+  cg: { userId: 'usr-demo-cg', role: 'CG', capabilities: capabilitiesFor('CG') }
+};
+
+const demoPatients = [
+  { patientId: 'pt-demo-001', localCode: 'DEMO-001', hn: 'HN-DEMO-001', fullName: 'นายตัวอย่าง หนึ่ง', age: 78, village: 'หมู่ 1', groupNumber: 3, status: 'ACTIVE' },
+  { patientId: 'pt-demo-002', localCode: 'DEMO-002', hn: 'HN-DEMO-002', fullName: 'นางตัวอย่าง สอง', age: 82, village: 'หมู่ 4', groupNumber: 2, status: 'ACTIVE' },
+  { patientId: 'pt-demo-003', localCode: 'DEMO-003', hn: 'HN-DEMO-003', fullName: 'นายข้อมูลจำลอง สาม', age: 71, village: 'หมู่ 2', groupNumber: 1, status: 'ACTIVE' }
+];
+
+export interface ReadRoute {
+  action: string;
+  capability?: Capability;
+  payload?: Record<string, unknown>;
+  demo: (actor: Actor) => unknown;
+}
+
+export const READ_ROUTES: Record<string, ReadRoute> = {
+  '/dashboard': { action: 'dashboard.summary', demo: () => ({ dueToday: 6, overdue: 2, reviewQueue: 3, highRiskAlerts: 1, drafts: 1 }) },
+  '/patients': { action: 'patient.list', payload: { limit: 50 }, demo: (actor) => page(actor.role === 'CG' ? demoPatients.slice(0, 1) : demoPatients) },
+  '/visits': {
+    action: 'visit.list',
+    demo: () => page([{ visitId: 'vs-demo-001', episodeId: 'ep-demo-001', visitDateTime: '2026-10-13T09:00:00+07:00', expectedEndTime: '2026-10-13T10:00:00+07:00', visitType: 'เยี่ยมบ้านตาม Care Plan', status: 'ASSIGNED' }])
+  },
+  '/alerts': {
+    action: 'alert.list',
+    demo: (actor) => page(actor.role === 'CG' ? [] : [{ alertId: 'al-demo-001', severity: 'HIGH', alertType: 'CG_URGENT_FLAG', eventAt: '2026-10-12T15:30:00+07:00', status: 'OPEN' }])
+  },
+  '/reviews': {
+    action: 'review.list', capability: 'encounter:review',
+    demo: () => page([{ encounterId: 'enc-demo-001', visitId: 'vs-demo-000', performerId: 'usr-demo-cg', endedAt: '2026-10-12T10:00:00+07:00', status: 'SUBMITTED', recordVersion: 1 }])
+  }
+};
+
+export interface WriteRoute {
+  action: string;
+  capability: Capability;
+  schema: { parse(value: unknown): Record<string, unknown>; safeParse(value: unknown): { success: boolean; data?: Record<string, unknown> } };
+  demo: (input: Record<string, unknown>) => Record<string, unknown>;
+}
+
+const uuid = () => globalThis.crypto.randomUUID();
+
+// Every write the UI can make. The gateway checks the capability and validates before calling GAS,
+// and GAS re-checks both. auth.* actions are deliberately not reachable through this map.
+export const WRITE_ROUTES: Record<string, WriteRoute> = {
+  '/adl-assessments': {
+    action: 'adl.create', capability: 'adl:approve', schema: adlCreateSchema,
+    demo: (input) => ({ assessmentId: uuid(), status: 'APPROVED', totalScore: calculateAdlTotal(adlCreateSchema.parse(input).items) })
+  },
+  '/ltc-classifications': {
+    action: 'classification.confirm', capability: 'classification:confirm', schema: classificationConfirmSchema,
+    demo: (input) => ({ classId: uuid(), decisionStatus: 'CONFIRMED', groupNumber: input.groupNumber })
+  },
+  '/care-plans': {
+    action: 'carePlan.create', capability: 'carePlan:approve', schema: carePlanCreateSchema,
+    demo: () => ({ carePlanId: uuid(), status: 'DRAFT', recordVersion: 1 })
+  },
+  '/care-plans/activate': {
+    action: 'carePlan.activate', capability: 'carePlan:approve', schema: carePlanActivateSchema,
+    demo: (input) => ({ carePlanId: input.carePlanId, status: 'ACTIVE' })
+  },
+  '/visit-encounters': {
+    action: 'visit.submit', capability: 'patients:read', schema: visitSubmitSchema,
+    demo: (input) => ({ encounterId: uuid(), submissionId: input.submissionId, status: 'SUBMITTED' })
+  },
+  '/encounter-reviews': {
+    action: 'encounter.review', capability: 'encounter:review', schema: encounterReviewSchema,
+    demo: (input) => ({ encounterId: input.encounterId, status: input.decision })
+  },
+  '/visit-files': {
+    action: 'file.upload', capability: 'patients:read', schema: fileUploadSchema,
+    demo: () => ({ fileRecordId: uuid(), scanStatus: 'PENDING_SCAN' })
+  }
+};

@@ -4,3 +4,4 @@ export * from './adl';
 export * from './ltc';
 export * from './rbac';
 export * from './actions';
+export * from './routes';
