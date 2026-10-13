@@ -45,11 +45,13 @@ const ANONYMOUS_ACTIONS: Record<string, (payload: Record<string, unknown>) => un
 
 export function doPost(e: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Content.TextOutput {
   const fallbackRequestId = Utilities.getUuid();
+  let verified = false;
   try {
     requireOperationalMode();
     const raw = e?.postData?.contents;
     if (!raw || raw.length > MAX_REQUEST_CHARS) throw new Error('INVALID_REQUEST');
     const trusted = verifyGatewayRequest(JSON.parse(raw) as unknown);
+    verified = true;
     if (trusted.action === 'auth.passwordVerify' && getAppMode() !== 'DEMO') throw new Error('PASSWORD_AUTH_DISABLED');
     const anonymousHandler = ANONYMOUS_ACTIONS[trusted.action];
     if (anonymousHandler) {
@@ -64,8 +66,11 @@ export function doPost(e: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Cont
     return jsonOutput(envelope(true, 'OK', '', data, trusted.requestId));
   } catch (error) {
     const internalCode = error instanceof Error ? (error.name === 'ZodError' ? 'VALIDATION_FAILED' : error.message) : 'REQUEST_DENIED';
-    console.warn(JSON.stringify({ requestId: fallbackRequestId, code: internalCode }));
-    return jsonOutput(envelope(false, internalCode, 'ไม่สามารถดำเนินการได้', null, fallbackRequestId));
+    console.warn(JSON.stringify({ requestId: fallbackRequestId, code: internalCode, verified }));
+    // The web app is reachable by anyone. Until the gateway signature checks out, reveal nothing
+    // about configuration or validation; the real reason is in the Executions log above.
+    const code = verified ? internalCode : 'REQUEST_REJECTED';
+    return jsonOutput(envelope(false, code, 'ไม่สามารถดำเนินการได้', null, fallbackRequestId));
   }
 }
 
