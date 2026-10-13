@@ -10,7 +10,7 @@ export function json<T>(status: number, envelope: ApiEnvelope<T>, headers?: Head
   return new Response(JSON.stringify(envelope), { status, headers: responseHeaders });
 }
 
-export function failure(status: number, code: string, message: string, requestId = crypto.randomUUID()): Response {
+export function failure(status: number, code: string, message: string, requestId: string = crypto.randomUUID()): Response {
   return json(status, { ok: false, code, message, data: null, requestId });
 }
 

@@ -1,0 +1,3 @@
+# Copy to .dev.vars for `wrangler dev`. Never set DEMO_IMPERSONATION on a deployed Worker
+# (it is ignored anyway unless the request is addressed to localhost).
+DEMO_IMPERSONATION=true

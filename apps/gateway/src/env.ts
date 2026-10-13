@@ -9,6 +9,8 @@ export interface Env {
   GOOGLE_CLIENT_ID: string;
   GOOGLE_HOSTED_DOMAIN?: string;
   PHI_EXPORT_ENABLED?: 'true' | 'false';
+  /** Local development only: honour the x-demo-role header for requests addressed to localhost. */
+  DEMO_IMPERSONATION?: 'true' | 'false';
   SECURITY_DB: D1Database;
   SECURITY_KV: KVNamespace;
 }
@@ -23,6 +25,16 @@ function assertSecret(name: string, value: string, minimumLength = 32): void {
 
 export function isDemoMode(env: Env): boolean {
   return env.APP_MODE === 'DEMO';
+}
+
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
+ * True only for `wrangler dev` with DEMO_IMPERSONATION=true in .dev.vars. A deployed Worker is never
+ * addressed as localhost, so a stray flag in production cannot turn the role header into a bypass.
+ */
+export function isLocalDemo(request: Request, env: Env): boolean {
+  return isDemoMode(env) && env.DEMO_IMPERSONATION === 'true' && LOCAL_HOSTS.has(new URL(request.url).hostname);
 }
 
 export function assertOperationalMode(env: Env): void {
