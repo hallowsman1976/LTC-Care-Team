@@ -1,6 +1,6 @@
 import { DEMO_ACTORS, patientCreateSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type Capability, type Page } from '@smart-ltc/shared';
 import type { Env } from './env';
-import { assertOperationalMode, isDemoMode, isLocalDemo } from './env';
+import { assertOperationalMode, isDemoMode, isLocalDemo, requireSecret } from './env';
 import { isSupportedBrowser } from './browser';
 import { failure, json } from './responses';
 import { createSession, expiredSessionCookie, loadSession, revokeSession, sessionCookie } from './session';
@@ -105,8 +105,8 @@ async function handle(request: Request, env: Env): Promise<Response> {
     if (!isDemoMode(env) && (!input.legalBasis || !input.privacyNoticeVersion)) {
       return failure(400, 'LEGAL_BASIS_REQUIRED', 'ต้องระบุฐานกฎหมายและเวอร์ชันประกาศความเป็นส่วนตัว', requestId);
     }
-    const cidCiphertext = await encryptCid(input.cid, env.CID_ENCRYPTION_KEY_BASE64);
-    const cidLookupHash = await hmacBase64(env.CID_LOOKUP_SECRET, input.cid);
+    const cidCiphertext = await encryptCid(input.cid, requireSecret(env, 'CID_ENCRYPTION_KEY_BASE64'));
+    const cidLookupHash = await hmacBase64(requireSecret(env, 'CID_LOOKUP_SECRET'), input.cid);
     const { cid: _discarded, ...safeInput } = input;
     return relayGas(await callGas(env, actor.userId, 'patient.create', { ...safeInput, cidCiphertext, cidLookupHash }), requestId);
   }
@@ -127,7 +127,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
       return `"${neutralized.replace(/"/g, '""')}"`;
     };
     for (const row of rows.items) {
-      const cid = await decryptCid(String(row.cidCiphertext), env.CID_ENCRYPTION_KEY_BASE64);
+      const cid = await decryptCid(String(row.cidCiphertext), requireSecret(env, 'CID_ENCRYPTION_KEY_BASE64'));
       lines.push([row.hn, cid, row.fullName, row.birthDate].map((value) => escape(String(value ?? ''))).join(','));
     }
     await env.SECURITY_DB.prepare('INSERT INTO security_events (event_id, actor_id, event_type, reason, created_at) VALUES (?, ?, ?, ?, ?)')

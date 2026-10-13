@@ -7,6 +7,10 @@ compatibility_date = "2026-10-01"
 workers_dev = true
 preview_urls = false
 
+# Keep Worker logs (console output, errors) in the dashboard: Workers → ltc-care-team → Logs.
+[observability]
+enabled = true
+
 # The Worker serves the built web app and the API from one origin (the session cookie is
 # __Host- and SameSite=Strict). Only /api/* runs the Worker; everything else is a static asset,
 # with unknown paths falling back to index.html for client-side routes. Build apps/web first.

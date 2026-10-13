@@ -174,3 +174,17 @@ describe('export re-authentication', () => {
     expect(result.message).toContain('เข้าสู่ระบบใหม่');
   });
 });
+
+describe('server-side failures', () => {
+  it('answers a generic 500 but logs the real reason for the operator', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const env = makeEnv({ GATEWAY_ASSERTION_SECRET: undefined as unknown as string });
+    const calls = stubGas(() => ({}));
+    const response = await call(request('/auth/password/login', { method: 'POST', body: json({ identifier: 'x', password: 'y'.repeat(12) }) }), env);
+    expect(response.status).toBe(500);
+    expect(await body(response)).toMatchObject({ code: 'INTERNAL_ERROR' });
+    expect(calls).toHaveLength(0);
+    expect(errors.mock.calls.map(([line]) => String(line)).join('\n')).toContain('MISSING_SECRET:GATEWAY_ASSERTION_SECRET');
+    errors.mockRestore();
+  });
+});

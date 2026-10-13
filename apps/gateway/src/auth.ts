@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { Actor } from '@smart-ltc/shared';
-import type { Env } from './env';
+import { requireSecret, type Env } from './env';
 import { callGas } from './gasProxy';
 import { decryptText } from './crypto';
 import { gasData, HttpError } from './errors';
@@ -59,7 +59,7 @@ export async function verifyTotp(userId: string, code: string, env: Env): Promis
   const row = await env.SECURITY_DB.prepare('SELECT totp_secret_ciphertext FROM user_security WHERE user_id = ? AND mfa_enabled = 1')
     .bind(userId).first<{ totp_secret_ciphertext: string }>();
   if (!row) throw new Error('MFA_ENROLLMENT_REQUIRED');
-  const secret = await decryptText(row.totp_secret_ciphertext, env.MFA_ENCRYPTION_KEY_BASE64, `smart-ltc:totp:${userId}:v1`);
+  const secret = await decryptText(row.totp_secret_ciphertext, requireSecret(env, 'MFA_ENCRYPTION_KEY_BASE64'), `smart-ltc:totp:${userId}:v1`);
   const now = Math.floor(Date.now() / 30_000);
   const lastUsedKey = `totp-last:${userId}`;
   const lastUsed = Number(await env.SECURITY_KV.get(lastUsedKey) ?? '-1');

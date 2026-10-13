@@ -23,6 +23,15 @@ function assertSecret(name: string, value: string, minimumLength = 32): void {
   }
 }
 
+type SecretName = 'GATEWAY_ASSERTION_SECRET' | 'CID_ENCRYPTION_KEY_BASE64' | 'CID_LOOKUP_SECRET' | 'MFA_ENCRYPTION_KEY_BASE64';
+
+/** Returns a Worker secret or throws a code that names it (logged, never shown to the client). */
+export function requireSecret(env: Env, name: SecretName): string {
+  const value = env[name];
+  if (!value) throw new Error(`MISSING_SECRET:${name}`);
+  return value;
+}
+
 export function isDemoMode(env: Env): boolean {
   return env.APP_MODE === 'DEMO';
 }

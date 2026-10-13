@@ -1,4 +1,4 @@
-import type { Env } from './env';
+import { requireSecret, type Env } from './env';
 import { hmacBase64, sha256Hex } from './crypto';
 
 export async function callGas(
@@ -7,6 +7,8 @@ export async function callGas(
   action: string,
   payload: Record<string, unknown>
 ): Promise<Response> {
+  requireSecret(env, 'GATEWAY_ASSERTION_SECRET');
+  if (!env.GAS_EXEC_URL) throw new Error('MISSING_CONFIG:GAS_EXEC_URL');
   const requestId = crypto.randomUUID();
   const nonce = crypto.randomUUID();
   const iat = Math.floor(Date.now() / 1000);
@@ -14,7 +16,7 @@ export async function callGas(
   const canonicalPayload = JSON.stringify(payload);
   const bodyHash = await sha256Hex(canonicalPayload);
   const canonical = [action, subject, String(iat), String(exp), nonce, bodyHash].join('\n');
-  const signature = await hmacBase64(env.GATEWAY_ASSERTION_SECRET, canonical);
+  const signature = await hmacBase64(requireSecret(env, 'GATEWAY_ASSERTION_SECRET'), canonical);
   const envelope = {
     apiVersion: 'v1', action, requestId,
     auth: { subject, iat, exp, nonce, bodyHash, signature },

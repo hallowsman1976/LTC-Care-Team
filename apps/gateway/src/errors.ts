@@ -59,7 +59,8 @@ export function errorResponse(error: unknown): Response {
   const code = error instanceof Error ? error.message : '';
   const known = GATEWAY_ERRORS[code];
   if (known) return failure(known[0], code, known[1]);
-  if (code.startsWith('INVALID_CONFIG:') || code === 'UNSUPPORTED_APP_MODE') return failure(500, code, 'ระบบยังตั้งค่าไม่ครบ');
+  // Operators read the cause in Workers Logs; clients only learn that the server failed.
+  console.error(JSON.stringify({ error: code || String(error), name: error instanceof Error ? error.name : typeof error }));
   return failure(500, 'INTERNAL_ERROR', 'ไม่สามารถดำเนินการได้');
 }
 
