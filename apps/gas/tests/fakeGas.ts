@@ -10,17 +10,41 @@ const toBuffer = (value: string | number[]): Buffer => typeof value === 'string'
 
 export class FakeSheet {
   constructor(public name: string, public rows: Cell[][]) {}
-  getDataRange() { return { getValues: () => this.rows.map((row) => [...row]) }; }
+  getDataRange() {
+    fakeGas.fullReads.set(this.name, (fakeGas.fullReads.get(this.name) ?? 0) + 1);
+    return { getValues: () => this.rows.map((row) => [...row]) };
+  }
   getLastRow() { return this.rows.length; }
   getLastColumn() { return this.rows[0]?.length ?? 0; }
   getRange(row: number, column: number, rowCount = 1, columnCount = 1) {
+    const sheet = this;
     return {
+      getRow: () => row,
       getValues: () => this.rows.slice(row - 1, row - 1 + rowCount).map((cells) => cells.slice(column - 1, column - 1 + columnCount)),
       setValues: (values: Cell[][]) => {
         values.forEach((cells, offset) => {
           const target = this.rows[row - 1 + offset] ?? (this.rows[row - 1 + offset] = []);
           cells.forEach((cell, index) => { target[column - 1 + index] = cell; });
         });
+      },
+      // Supports the exact-match lookup the repository uses: matchEntireCell(true).matchCase(true).
+      createTextFinder: (text: string) => {
+        const options = { entireCell: false, caseSensitive: false };
+        const finder = {
+          matchEntireCell: (value: boolean) => { options.entireCell = value; return finder; },
+          matchCase: (value: boolean) => { options.caseSensitive = value; return finder; },
+          findNext: () => {
+            const norm = (value: string) => (options.caseSensitive ? value : value.toLowerCase());
+            for (let index = row - 1; index < row - 1 + rowCount; index += 1) {
+              for (let offset = 0; offset < columnCount; offset += 1) {
+                const cell = norm(String(sheet.rows[index]?.[column - 1 + offset] ?? ''));
+                if (options.entireCell ? cell === norm(text) : cell.includes(norm(text))) return sheet.getRange(index + 1, column + offset);
+              }
+            }
+            return null;
+          }
+        };
+        return finder;
       }
     };
   }
@@ -35,13 +59,15 @@ export interface FakeGasState {
   cache: Map<string, string>;
   lockDepth: number;
   lockAcquisitions: number;
+  /** getDataRange() calls per sheet, to catch whole-sheet scans. */
+  fullReads: Map<string, number>;
   now: Date;
   /** Hook for tests that need to observe writes. */
   onWrite?: (sheetName: string) => void;
 }
 
 export const fakeGas: FakeGasState = {
-  sheets: new Map(), properties: {}, cache: new Map(), lockDepth: 0, lockAcquisitions: 0, now: new Date()
+  sheets: new Map(), properties: {}, cache: new Map(), lockDepth: 0, lockAcquisitions: 0, fullReads: new Map(), now: new Date()
 };
 
 /** Installs the fake services with every workbook sheet created and headed. */
@@ -51,6 +77,7 @@ export function installFakeGas(properties: Record<string, string> = {}): FakeGas
   fakeGas.cache = new Map();
   fakeGas.lockDepth = 0;
   fakeGas.lockAcquisitions = 0;
+  fakeGas.fullReads = new Map();
   delete fakeGas.onWrite;
 
   const spreadsheet = {

@@ -28,16 +28,47 @@ export function pageOf(name: string, predicate: (row: RowRecord) => boolean, lim
   return { items: matches.slice(0, capped), hasMore: matches.length > capped };
 }
 
-export function listAll(name: string, predicate: (row: RowRecord) => boolean, maximumRows = 5_000): RowRecord[] {
+// Whole-sheet scans read every cell, so they get slower as a sheet grows. The bound is a guard
+// against runaway sheets, not a capacity plan: archive or migrate long before reaching it.
+const SCAN_BOUND_ROWS = 50_000;
+
+export function listAll(name: string, predicate: (row: RowRecord) => boolean, maximumRows = SCAN_BOUND_ROWS): RowRecord[] {
   const sheet = getSheet(name);
   if (sheet.getLastRow() > maximumRows + 1) throw new Error(`SCAN_BOUND_EXCEEDED:${name}`);
   return rowsToRecords(sheet.getDataRange().getValues()).filter(predicate);
 }
 
+function headersOf(sheet: GoogleAppsScript.Spreadsheet.Sheet): string[] {
+  return sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]?.map(String) ?? [];
+}
+
+/**
+ * Finds one row by id with a TextFinder on the id column, so the cost does not grow with the
+ * sheet. TextFinder matches displayed text, hence the exact comparison on the stored value.
+ */
 export function getById(name: string, idColumn: string, id: string): RowRecord | null {
+  if (!id) return null;
   const sheet = getSheet(name);
-  if (sheet.getLastRow() > 5_001) throw new Error('LOOKUP_BOUND_EXCEEDED');
-  return rowsToRecords(sheet.getDataRange().getValues()).find((row) => String(row[idColumn]) === id) ?? null;
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+  const headers = headersOf(sheet);
+  const column = headers.indexOf(idColumn) + 1;
+  if (column < 1) throw new Error(`COLUMN_MISSING:${name}.${idColumn}`);
+  const match = sheet.getRange(2, column, lastRow - 1, 1).createTextFinder(id).matchEntireCell(true).matchCase(true).findNext();
+  if (!match) return null;
+  const values = sheet.getRange(match.getRow(), 1, 1, headers.length).getValues()[0] ?? [];
+  const record = Object.fromEntries(headers.map((header, index) => [header, values[index]]));
+  return String(record[idColumn]) === id ? record : null;
+}
+
+/**
+ * Append-only write for logs whose ids are generated here (UUIDs), so no uniqueness lookup is
+ * needed. appendRow is atomic, so concurrent writers cannot interleave within a row.
+ */
+export function appendLog(name: string, record: RowRecord): RowRecord {
+  const sheet = getSheet(name);
+  sheet.appendRow(headersOf(sheet).map((header) => record[header] ?? ''));
+  return record;
 }
 
 let lockDepth = 0;
@@ -66,8 +97,7 @@ export function appendUnique(name: string, idColumn: string, record: RowRecord):
   return withScriptLock(() => {
     if (getById(name, idColumn, String(record[idColumn]))) throw new Error('DUPLICATE_ID');
     const sheet = getSheet(name);
-    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]?.map(String) ?? [];
-    sheet.appendRow(headers.map((header) => record[header] ?? ''));
+    sheet.appendRow(headersOf(sheet).map((header) => record[header] ?? ''));
     return record;
   });
 }

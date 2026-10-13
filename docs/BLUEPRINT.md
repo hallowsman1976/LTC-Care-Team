@@ -35,6 +35,7 @@ Deferred engineering work:
 
 - **Step-up re-authentication before export (Phase F).** Export requires authentication within the last 5 minutes, but there is no step-up endpoint yet; the only way to satisfy it is to sign out and sign in again. Export stays disabled (`PHI_EXPORT_ENABLED=false`) until this exists.
 - **Full pagination.** List endpoints return the first 50 rows with `hasMore`; there is no cursor yet.
+- **Sheet growth.** Id lookups use a TextFinder and audit rows are append-only, so growth no longer blocks writes. Whole-sheet scans (dashboard, lists, scheduler) still slow down as sheets grow and stop at 50,000 rows (`SCAN_BOUND_EXCEEDED`), and a Google spreadsheet holds at most 10 million cells. Before a pilot, load-test on real Apps Script with one to two years of synthetic volume, and plan monthly rotation of `AuditLogs` into an archive spreadsheet.
 
 Clinical decisions that need an accountable clinical owner (not changed in code):
 
