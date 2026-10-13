@@ -38,3 +38,8 @@ export const VISIT_STATUSES = [
 ] as const;
 export type VisitStatus = (typeof VISIT_STATUSES)[number];
 
+
+export interface Page<T> {
+  items: T[];
+  hasMore: boolean;
+}
