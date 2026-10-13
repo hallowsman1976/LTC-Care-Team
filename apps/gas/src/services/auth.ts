@@ -1,15 +1,9 @@
-import type { Actor, Role } from '@smart-ltc/shared';
+import type { Actor } from '@smart-ltc/shared';
 import { getRequiredProperty } from '../config';
 import { listPage } from '../repositories/sheets';
 import { derivePasswordHash } from '../security/password';
 import { constantTimeEqual } from '../utils/encoding';
-import { resolveActor } from '../security/rbac';
-
-const capabilities: Record<Role, Actor['capabilities']> = {
-  ADMIN: ['users:manage', 'export:phi'],
-  CM: ['patients:read', 'patients:write', 'adl:approve', 'classification:confirm', 'carePlan:approve', 'encounter:review', 'export:phi'],
-  CG: ['patients:read']
-};
+import { resolveActorBySubject, resolveActorByUserId } from '../security/rbac';
 
 export function verifyPassword(payload: Record<string, unknown>): Actor {
   const identifier = String(payload.identifier ?? '').trim().toLowerCase();
@@ -19,12 +13,16 @@ export function verifyPassword(payload: Record<string, unknown>): Actor {
   if (!credential) throw new Error('INVALID_CREDENTIALS');
   const actual = derivePasswordHash(password, String(credential.saltBase64), getRequiredProperty('PASSWORD_PEPPER'), Number(credential.iterations));
   if (!constantTimeEqual(actual, String(credential.derivedHashBase64))) throw new Error('INVALID_CREDENTIALS');
-  const user = listPage('Users', (row) => String(row.userId) === String(credential.userId) && String(row.enabled).toLowerCase() === 'true', 1)[0];
-  if (!user) throw new Error('INVALID_CREDENTIALS');
-  const role = String(user.role) as Role;
-  return { userId: String(user.userId), role, capabilities: capabilities[role] ?? [] };
+  try {
+    // Same enabled/role/clinical-credential rules as Google sign-in.
+    return resolveActorByUserId(String(credential.userId));
+  } catch (error) {
+    // A disabled account is indistinguishable from a wrong password; an expired CM credential is not.
+    if (error instanceof Error && error.message === 'ACTOR_NOT_ALLOWED') throw new Error('INVALID_CREDENTIALS');
+    throw error;
+  }
 }
 
 export function resolveIdentity(payload: Record<string, unknown>): Actor {
-  return resolveActor(String(payload.subject ?? ''));
+  return resolveActorBySubject(String(payload.subject ?? ''));
 }

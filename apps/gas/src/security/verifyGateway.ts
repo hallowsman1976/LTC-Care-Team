@@ -1,6 +1,7 @@
 import { getRequiredProperty, getSpreadsheet } from '../config';
 import { constantTimeEqual, bytesToHex } from '../utils/encoding';
 import { apiRequestSchema } from '@smart-ltc/shared';
+import { withScriptLock } from '../repositories/sheets';
 
 export interface TrustedRequest {
   action: string;
@@ -21,7 +22,7 @@ export function verifyGatewayRequest(value: unknown): TrustedRequest {
     throw new Error('EXPIRED_ASSERTION');
   }
   const payloadText = canonicalPayload(request.payload);
-  const actualBodyHash = bytesToHex(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, payloadText));
+  const actualBodyHash = bytesToHex(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, payloadText, Utilities.Charset.UTF_8));
   if (!constantTimeEqual(actualBodyHash, request.auth.bodyHash)) throw new Error('BODY_BINDING_FAILED');
   const canonical = [request.action, request.auth.subject, String(request.auth.iat), String(request.auth.exp), request.auth.nonce, request.auth.bodyHash].join('\n');
   const expected = Utilities.base64Encode(Utilities.computeHmacSha256Signature(canonical, getRequiredProperty('GATEWAY_ASSERTION_SECRET')));
@@ -33,9 +34,7 @@ export function verifyGatewayRequest(value: unknown): TrustedRequest {
 function consumeNonce(nonce: string, expiresAt: number): void {
   const cache = CacheService.getScriptCache();
   if (cache.get(`nonce:${nonce}`)) throw new Error('REPLAYED_ASSERTION');
-  const lock = LockService.getScriptLock();
-  lock.waitLock(5_000);
-  try {
+  withScriptLock(() => {
     if (cache.get(`nonce:${nonce}`)) throw new Error('REPLAYED_ASSERTION');
     const sheet = getSpreadsheet().getSheetByName('GatewayNonces');
     if (!sheet) throw new Error('NONCE_STORE_MISSING');
@@ -49,8 +48,6 @@ function consumeNonce(nonce: string, expiresAt: number): void {
       for (const entry of expiredRows) sheet.deleteRow(entry.row);
     }
     cache.put(`nonce:${nonce}`, '1', Math.max(60, expiresAt - Math.floor(Date.now() / 1000) + 60));
-  } finally {
-    lock.releaseLock();
-  }
+  });
 }
 

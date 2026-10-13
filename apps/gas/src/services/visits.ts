@@ -1,34 +1,40 @@
 import type { Actor } from '@smart-ltc/shared';
-import { appendUnique, getById } from '../repositories/sheets';
+import { visitSubmitSchema } from '@smart-ltc/shared';
+import { appendUnique, getById, withScriptLock } from '../repositories/sheets';
 import { audit } from '../security/audit';
 
 export function submitVisit(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
-  const submissionId = String(payload.submissionId ?? '');
-  if (!submissionId) throw new Error('SUBMISSION_ID_REQUIRED');
-  const previous = getById('SyncReceipts', 'submissionId', submissionId);
-  if (previous) {
-    const existing = getById('VisitEncounters', 'submissionId', submissionId);
-    if (!existing) throw new Error('PARTIAL_COMMIT_REQUIRES_RECONCILIATION');
-    return existing;
-  }
-  const visitId = String(payload.visitId ?? '');
-  const visit = getById('VisitSchedules', 'visitId', visitId);
-  if (!visit || String(visit.assignedStaffId) !== actor.userId) throw new Error('VISIT_NOT_ASSIGNED');
-  const encounterId = Utilities.getUuid();
-  const now = new Date().toISOString();
-  const encounter = appendUnique('VisitEncounters', 'encounterId', {
-    encounterId, visitId, episodeId: visit.episodeId, performerId: actor.userId,
-    startedAt: String(payload.startedAt ?? ''), endedAt: String(payload.endedAt ?? ''),
-    source: String(payload.source ?? 'ONLINE'), notes: String(payload.notes ?? ''),
-    vitalsJson: JSON.stringify(payload.vitals ?? {}), submissionId, status: 'SUBMITTED',
-    reviewedBy: '', reviewedAt: '', reviewNotes: '',
-    createdAt: now, updatedAt: now, createdBy: actor.userId, recordVersion: 1
+  const input = visitSubmitSchema.parse(payload);
+  // The receipt lookup and both writes share one lock so a retried submission cannot slip in between.
+  return withScriptLock(() => {
+    if (getById('SyncReceipts', 'submissionId', input.submissionId)) {
+      const existing = getById('VisitEncounters', 'submissionId', input.submissionId);
+      if (!existing) throw new Error('PARTIAL_COMMIT_REQUIRES_RECONCILIATION');
+      return existing;
+    }
+    const visit = getById('VisitSchedules', 'visitId', input.visitId);
+    if (!visit || String(visit.assignedStaffId) !== actor.userId) throw new Error('VISIT_NOT_ASSIGNED');
+    const encounterId = Utilities.getUuid();
+    const now = new Date().toISOString();
+    const encounter = appendUnique('VisitEncounters', 'encounterId', {
+      encounterId, visitId: input.visitId, episodeId: visit.episodeId, performerId: actor.userId,
+      startedAt: input.startedAt, endedAt: input.endedAt, source: input.source, notes: input.notes,
+      vitalsJson: JSON.stringify(input.vitals), submissionId: input.submissionId, status: 'SUBMITTED',
+      reviewedBy: '', reviewedAt: '', reviewNotes: '',
+      createdAt: now, updatedAt: now, createdBy: actor.userId, recordVersion: 1
+    });
+    appendUnique('SyncReceipts', 'submissionId', {
+      submissionId: input.submissionId, actorId: actor.userId, entityType: 'VisitEncounter', entityId: encounterId,
+      receivedAt: now, result: 'COMMITTED', checksum: input.checksum ?? ''
+    });
+    if (input.urgentFlag) {
+      // The caregiver asked for CM attention; surface it on the CM alert list rather than dropping it.
+      appendUnique('Alerts', 'alertId', {
+        alertId: Utilities.getUuid(), episodeId: visit.episodeId, encounterId, severity: 'HIGH',
+        alertType: 'CG_URGENT_FLAG', eventAt: now, status: 'OPEN', assignedTo: '', closedAt: ''
+      });
+    }
+    audit(actor.userId, 'visit.submit', 'VisitEncounter', encounterId, 'SUCCESS', input.urgentFlag ? 'URGENT_FLAG' : '');
+    return encounter;
   });
-  appendUnique('SyncReceipts', 'submissionId', {
-    submissionId, actorId: actor.userId, entityType: 'VisitEncounter', entityId: encounterId,
-    receivedAt: now, result: 'COMMITTED', checksum: String(payload.checksum ?? '')
-  });
-  audit(actor.userId, 'visit.submit', 'VisitEncounter', encounterId, 'SUCCESS');
-  return encounter;
 }
-

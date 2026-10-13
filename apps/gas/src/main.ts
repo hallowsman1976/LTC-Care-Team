@@ -1,6 +1,6 @@
 import { getAppMode, getRequiredProperty, requireOperationalMode } from './config';
 import { verifyGatewayRequest } from './security/verifyGateway';
-import { resolveActor } from './security/rbac';
+import { resolveActorByUserId } from './security/rbac';
 import { createAdlAssessment } from './services/adl';
 import { confirmClassification } from './services/ltc';
 import { submitVisit } from './services/visits';
@@ -14,7 +14,10 @@ import { initializeDemoWorkbook as initialize } from './initializer';
 import { runScheduler } from './jobs/schedule';
 import { dashboardSummary, listAlerts, listReviews, listVisits } from './services/operations';
 
-type Handler = (actor: ReturnType<typeof resolveActor>, payload: Record<string, unknown>) => unknown;
+// A 5 MB upload is ~6.7 MB as base64, plus the envelope.
+const MAX_REQUEST_CHARS = 7_500_000;
+
+type Handler = (actor: ReturnType<typeof resolveActorByUserId>, payload: Record<string, unknown>) => unknown;
 const ACTIONS: Record<string, Handler> = {
   'patient.create': createPatient,
   'patient.list': listPatients,
@@ -42,7 +45,7 @@ export function doPost(e: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Cont
   try {
     requireOperationalMode();
     const raw = e?.postData?.contents;
-    if (!raw || raw.length > 100_000) throw new Error('INVALID_REQUEST');
+    if (!raw || raw.length > MAX_REQUEST_CHARS) throw new Error('INVALID_REQUEST');
     const trusted = verifyGatewayRequest(JSON.parse(raw) as unknown);
     if (trusted.action === 'auth.passwordVerify' && getAppMode() !== 'DEMO') throw new Error('PASSWORD_AUTH_DISABLED');
     const anonymousHandler = ANONYMOUS_ACTIONS[trusted.action];
@@ -52,11 +55,12 @@ export function doPost(e: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Cont
     }
     const handler = ACTIONS[trusted.action];
     if (!handler) throw new Error('UNKNOWN_ACTION');
-    const actor = resolveActor(trusted.subject);
+    // After sign-in the gateway session identifies users by our own userId, never the IdP subject.
+    const actor = resolveActorByUserId(trusted.subject);
     const data = handler(actor, trusted.payload);
     return jsonOutput(envelope(true, 'OK', '', data, trusted.requestId));
   } catch (error) {
-    const internalCode = error instanceof Error ? error.message : 'REQUEST_DENIED';
+    const internalCode = error instanceof Error ? (error.name === 'ZodError' ? 'VALIDATION_FAILED' : error.message) : 'REQUEST_DENIED';
     console.warn(JSON.stringify({ requestId: fallbackRequestId, code: internalCode }));
     return jsonOutput(envelope(false, internalCode, 'ไม่สามารถดำเนินการได้', null, fallbackRequestId));
   }
@@ -72,7 +76,7 @@ export function initializePilotWorkbook(): { created: string[] } {
   return initialize(false);
 }
 
-export function runVisitScheduler(): { generated: number; horizonDays: number } {
+export function runVisitScheduler(): ReturnType<typeof runScheduler> {
   requireOperationalMode();
   if (getAppMode() === 'PILOT' && getRequiredProperty('SCHEDULER_ENABLED') !== 'true') throw new Error('SCHEDULER_NOT_APPROVED');
   return runScheduler();

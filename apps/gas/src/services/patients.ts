@@ -1,5 +1,5 @@
-import type { Actor } from '@smart-ltc/shared';
-import { appendUnique, listPage } from '../repositories/sheets';
+import type { Actor, Page } from '@smart-ltc/shared';
+import { appendUnique, listAll, listPage, pageOf, type RowRecord } from '../repositories/sheets';
 import { requireCapability } from '../security/rbac';
 import { audit } from '../security/audit';
 
@@ -42,27 +42,30 @@ export function createPatient(actor: Actor, payload: Record<string, unknown>): R
   return { status: 'CREATED', patient: record };
 }
 
-export function listPatients(actor: Actor, payload: Record<string, unknown>): Record<string, unknown>[] {
+export function listPatients(actor: Actor, payload: Record<string, unknown>): Page<RowRecord> {
   requireCapability(actor, 'patients:read');
   const limit = Number(payload.limit ?? 25);
   if (actor.role === 'CG') {
-    const assignments = listPage('StaffAssignments', (row) => String(row.staffId) === actor.userId && String(row.status) === 'ACTIVE', 50);
+    // Full scans here: capping the assignment lookup would silently hide assigned patients.
+    const assignments = listAll('StaffAssignments', (row) => String(row.staffId) === actor.userId && String(row.status) === 'ACTIVE');
     const episodeIds = new Set(assignments.map((row) => String(row.episodeId)));
-    const episodes = listPage('CareEpisodes', (row) => episodeIds.has(String(row.episodeId)), 50);
+    const episodes = listAll('CareEpisodes', (row) => episodeIds.has(String(row.episodeId)));
     const patientIds = new Set(episodes.map((row) => String(row.patientId)));
-    return listPage('Patients', (row) => patientIds.has(String(row.patientId)), limit).map(projectCgPatient);
+    const page = pageOf('Patients', (row) => patientIds.has(String(row.patientId)), limit);
+    return { items: page.items.map(projectCgPatient), hasMore: page.hasMore };
   }
-  return listPage('Patients', () => true, limit).map((row) => ({ ...row, cidCiphertext: undefined, cidLookupHash: undefined }));
+  const page = pageOf('Patients', () => true, limit);
+  return { items: page.items.map((row) => ({ ...row, cidCiphertext: undefined, cidLookupHash: undefined })), hasMore: page.hasMore };
 }
 
-export function exportPatients(actor: Actor): Record<string, unknown>[] {
+export function exportPatients(actor: Actor): Page<RowRecord> {
   requireCapability(actor, 'export:phi');
   if (actor.role !== 'CM') throw new Error('CM_REQUIRED');
-  const rows = listPage('Patients', () => true, 50).map((row) => ({
+  const items = listAll('Patients', () => true).map((row) => ({
     hn: row.hn, cidCiphertext: row.cidCiphertext, fullName: row.fullName, birthDate: row.birthDate
   }));
-  audit(actor.userId, 'patient.export', 'Patient', '*', 'SUCCESS', `COUNT:${rows.length}`);
-  return rows;
+  audit(actor.userId, 'patient.export', 'Patient', '*', 'SUCCESS', `COUNT:${items.length}`);
+  return { items, hasMore: false };
 }
 
 function projectCgPatient(row: Record<string, unknown>): Record<string, unknown> {

@@ -1,9 +1,13 @@
-import type { Actor } from '@smart-ltc/shared';
-import { listAll, listPage } from '../repositories/sheets';
+import type { Actor, Page } from '@smart-ltc/shared';
+import { listAll, pageOf, type RowRecord } from '../repositories/sheets';
 import { requireCapability } from '../security/rbac';
 
 function isoDateInBangkok(date = new Date()): string {
   return Utilities.formatDate(date, 'Asia/Bangkok', 'yyyy-MM-dd');
+}
+
+function mapPage(page: Page<RowRecord>, project: (row: RowRecord) => RowRecord): Page<RowRecord> {
+  return { items: page.items.map(project), hasMore: page.hasMore };
 }
 
 function visitVisibleTo(actor: Actor, row: Record<string, unknown>): boolean {
@@ -21,26 +25,26 @@ export function dashboardSummary(actor: Actor): Record<string, number> {
   return { dueToday, overdue, reviewQueue, highRiskAlerts, drafts };
 }
 
-export function listVisits(actor: Actor): Record<string, unknown>[] {
+export function listVisits(actor: Actor): Page<RowRecord> {
   requireCapability(actor, 'patients:read');
-  return listPage('VisitSchedules', (row) => visitVisibleTo(actor, row), 50).map((row) => ({
+  return mapPage(pageOf('VisitSchedules', (row) => visitVisibleTo(actor, row), 50), (row) => ({
     visitId: row.visitId, episodeId: row.episodeId, visitDateTime: row.visitDateTime,
     expectedEndTime: row.expectedEndTime, visitType: row.visitType, status: row.status
   }));
 }
 
-export function listAlerts(actor: Actor): Record<string, unknown>[] {
+export function listAlerts(actor: Actor): Page<RowRecord> {
   requireCapability(actor, 'patients:read');
-  if (actor.role === 'CG') return [];
-  return listPage('Alerts', (row) => String(row.status) !== 'CLOSED', 50).map((row) => ({
+  if (actor.role === 'CG') return { items: [], hasMore: false };
+  return mapPage(pageOf('Alerts', (row) => String(row.status) !== 'CLOSED', 50), (row) => ({
     alertId: row.alertId, severity: row.severity, alertType: row.alertType,
     eventAt: row.eventAt, status: row.status
   }));
 }
 
-export function listReviews(actor: Actor): Record<string, unknown>[] {
+export function listReviews(actor: Actor): Page<RowRecord> {
   requireCapability(actor, 'encounter:review');
-  return listPage('VisitEncounters', (row) => String(row.status) === 'SUBMITTED', 50).map((row) => ({
+  return mapPage(pageOf('VisitEncounters', (row) => String(row.status) === 'SUBMITTED', 50), (row) => ({
     encounterId: row.encounterId, visitId: row.visitId, performerId: row.performerId,
     endedAt: row.endedAt, status: row.status, recordVersion: row.recordVersion
   }));
