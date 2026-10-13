@@ -3,6 +3,18 @@ import { getSpreadsheet } from '../config';
 
 export type RowRecord = Record<string, unknown>;
 
+/**
+ * Sheets parses written values as if a user typed them, so text starting with = + - or @ would
+ * become a formula: user input could execute in the workbook, and base64 such as a password hash
+ * could be corrupted. A leading apostrophe forces text and is not part of the stored value.
+ */
+function toCell(value: unknown): unknown {
+  if (value === undefined || value === null) return '';
+  return typeof value === 'string' && /^[=+\-@']/.test(value) ? `'${value}` : value;
+}
+
+const rowOf = (headers: string[], record: RowRecord): unknown[] => headers.map((header) => toCell(record[header]));
+
 export function getSheet(name: string): GoogleAppsScript.Spreadsheet.Sheet {
   const sheet = getSpreadsheet().getSheetByName(name);
   if (!sheet) throw new Error(`SHEET_MISSING:${name}`);
@@ -67,7 +79,7 @@ export function getById(name: string, idColumn: string, id: string): RowRecord |
  */
 export function appendLog(name: string, record: RowRecord): RowRecord {
   const sheet = getSheet(name);
-  sheet.appendRow(headersOf(sheet).map((header) => record[header] ?? ''));
+  sheet.appendRow(rowOf(headersOf(sheet), record));
   return record;
 }
 
@@ -75,7 +87,7 @@ export function appendLog(name: string, record: RowRecord): RowRecord {
 export function bulkAppend(sheet: GoogleAppsScript.Spreadsheet.Sheet, headers: string[], records: RowRecord[]): void {
   if (records.length === 0) return;
   sheet.getRange(sheet.getLastRow() + 1, 1, records.length, headers.length)
-    .setValues(records.map((record) => headers.map((header) => record[header] ?? '')));
+    .setValues(records.map((record) => rowOf(headers, record)));
 }
 
 export { headersOf };
@@ -106,7 +118,7 @@ export function appendUnique(name: string, idColumn: string, record: RowRecord):
   return withScriptLock(() => {
     if (getById(name, idColumn, String(record[idColumn]))) throw new Error('DUPLICATE_ID');
     const sheet = getSheet(name);
-    sheet.appendRow(headersOf(sheet).map((header) => record[header] ?? ''));
+    sheet.appendRow(rowOf(headersOf(sheet), record));
     return record;
   });
 }
@@ -124,7 +136,7 @@ export function versionedUpdate(name: string, idColumn: string, id: string, expe
     const updated = Object.fromEntries(headers.map((header, index) => [header, changes[header] ?? values[rowIndex]?.[index] ?? '']));
     updated.recordVersion = expectedVersion + 1;
     updated.updatedAt = new Date().toISOString();
-    sheet.getRange(rowIndex + 1, 1, 1, headers.length).setValues([headers.map((header) => updated[header] ?? '')]);
+    sheet.getRange(rowIndex + 1, 1, 1, headers.length).setValues([rowOf(headers, updated)]);
     return updated;
   });
 }
@@ -141,7 +153,7 @@ export function updateWhere(name: string, predicate: (row: RowRecord) => boolean
       if (index === 0) return;
       const record = Object.fromEntries(headers.map((header, column) => [header, row[column]]));
       if (!predicate(record)) return;
-      sheet.getRange(index + 1, 1, 1, headers.length).setValues([headers.map((header, column) => changes[header] ?? row[column] ?? '')]);
+      sheet.getRange(index + 1, 1, 1, headers.length).setValues([headers.map((header, column) => toCell(changes[header] ?? row[column]))]);
       changed += 1;
     });
     return changed;

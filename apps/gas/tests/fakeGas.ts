@@ -6,6 +6,16 @@ import { SHEETS } from '../src/initializer';
 
 type Cell = unknown;
 const toSigned = (buffer: Buffer): number[] => [...buffer].map((value) => (value > 127 ? value - 256 : value));
+/**
+ * Mimics how Sheets parses values written through appendRow/setValues, as if typed by a user:
+ * a leading apostrophe forces text (and is not stored), and text that looks like a formula is
+ * evaluated, which for our data means a broken cell.
+ */
+const asTyped = (cell: Cell): Cell => {
+  if (typeof cell !== 'string') return cell;
+  if (cell.startsWith("'")) return cell.slice(1);
+  return /^(=|\+|-\D)/.test(cell) ? '#ERROR!' : cell;
+};
 const toBuffer = (value: string | number[]): Buffer => typeof value === 'string' ? Buffer.from(value, 'utf8') : Buffer.from(value.map((byte) => (byte + 256) % 256));
 
 export class FakeSheet {
@@ -24,7 +34,7 @@ export class FakeSheet {
       setValues: (values: Cell[][]) => {
         values.forEach((cells, offset) => {
           const target = this.rows[row - 1 + offset] ?? (this.rows[row - 1 + offset] = []);
-          cells.forEach((cell, index) => { target[column - 1 + index] = cell; });
+          cells.forEach((cell, index) => { target[column - 1 + index] = asTyped(cell); });
         });
       },
       // Supports the exact-match lookup the repository uses: matchEntireCell(true).matchCase(true).
@@ -48,7 +58,7 @@ export class FakeSheet {
       }
     };
   }
-  appendRow(row: Cell[]) { fakeGas.onWrite?.(this.name); this.rows.push([...row]); }
+  appendRow(row: Cell[]) { fakeGas.onWrite?.(this.name); this.rows.push(row.map(asTyped)); }
   deleteRow(row: number) { this.rows.splice(row - 1, 1); }
   deleteRows(row: number, count: number) { this.rows.splice(row - 1, count); }
   setFrozenRows() {}
