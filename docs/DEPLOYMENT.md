@@ -2,13 +2,13 @@
 
 ## Local
 
-1. Install Node.js 22 and pnpm 11.
+1. Install Node.js 22 and pnpm 11 (see README for Windows).
 2. Copy `.env.example` to local environment configuration; never commit values.
 3. Run `pnpm install`, then `pnpm check`.
-4. Start Worker with `pnpm --filter @smart-ltc/gateway dev` after creating local D1/KV bindings.
+4. Copy `apps/gateway/.dev.vars.example` to `apps/gateway/.dev.vars` and start the Worker with `pnpm --filter @smart-ltc/gateway dev`.
 5. Start web with `pnpm --filter @smart-ltc/web dev`.
 
-The web app proxies `/api` to `127.0.0.1:8787`. The Demo role switch sends `x-demo-role` and only works because Worker requires `APP_MODE=DEMO`.
+The web app proxies `/api` to `127.0.0.1:8787`. In this local setup the role switcher sends `x-demo-role` and the Worker answers from synthetic fixtures without calling GAS. A deployed DEMO ignores the header (see `SECURITY.md`).
 
 ## GAS demo project
 
@@ -16,7 +16,7 @@ The web app proxies `/api` to `127.0.0.1:8787`. The Demo role switch sends `x-de
 2. Set Script Properties: `APP_MODE=DEMO`, `SPREADSHEET_ID`, `GATEWAY_ASSERTION_SECRET`, `PASSWORD_PEPPER`, `QUARANTINE_FOLDER_ID`.
 3. Run `pnpm --filter @smart-ltc/gas build`.
 4. Configure `.clasp.json` locally and run `pnpm --filter @smart-ltc/gas push`.
-5. Execute `initializeDemoWorkbook` once.
+5. Execute `initializeDemoWorkbook` once, add demo rows to `Users` (and `StaffProfiles` for CM), then create sign-in accounts as described in `scripts/seed-demo/README.md`.
 6. Deploy the Web App and set its URL as `GAS_EXEC_URL` in Worker.
 7. Direct GAS access must still fail without a valid Worker assertion.
 

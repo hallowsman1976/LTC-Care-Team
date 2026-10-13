@@ -19,7 +19,12 @@
 - Cookie: `HttpOnly`, `Secure`, `SameSite=Strict`, `__Host-` prefix
 - อายุสูงสุด 8 ชั่วโมง; inactivity 30 นาที
 - Sensitive export ต้องมี authentication age ไม่เกิน 5 นาทีและระบุเหตุผล
-- Admin/CM ต้องผ่าน TOTP; secret เข้ารหัส AES-GCM ก่อนเก็บใน D1
+- Admin/CM ต้องผ่าน TOTP; secret เข้ารหัส AES-GCM ก่อนเก็บใน D1 และรหัสที่ใช้แล้วใช้ซ้ำไม่ได้ (เก็บ time-step ล่าสุดใน KV)
+- Rate limit การเข้าสู่ระบบ: 5 ครั้งต่อ IP+บัญชี และ 20 ครั้งต่อบัญชี ภายใน 15 นาที นับใหม่เมื่อเข้าสู่ระบบสำเร็จ
+
+## Demo impersonation
+
+Header `x-demo-role` ใช้ได้เฉพาะเมื่อครบทั้งสามเงื่อนไข: `APP_MODE=DEMO`, `DEMO_IMPERSONATION=true` (ตั้งใน `apps/gateway/.dev.vars` เท่านั้น) และ request ส่งถึง `localhost`/`127.0.0.1` Worker ที่ deploy แล้วไม่มีวันถูกเรียกด้วย hostname เหล่านี้ จึงต้องเข้าสู่ระบบด้วยรหัสผ่านเสมอ แม้ตั้ง flag ผิด
 
 ## Personal data
 

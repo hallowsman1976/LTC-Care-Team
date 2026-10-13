@@ -13,11 +13,35 @@ External API อยู่ใต้ `/api/v1`. ทุก response JSON ใช้ 
 | POST | `/auth/password/login` | Public/rate limited | Password + TOTP for Admin/CM |
 | POST | `/auth/google` | Public/rate limited | Verified Google ID token |
 | GET | `/auth/me` | Authenticated | Server-resolved actor only |
-| GET | `/dashboard` | Authenticated/scoped | Demo adapter in local mode |
-| GET | `/patients` | Scoped | CG receives assigned projection only |
-| POST | `/patients` | CM | CID transformed at Worker before GAS |
-| POST | `/exports/patients.csv` | CM + `export:phi` | Recent auth and `x-export-reason` required |
-| POST | `/internal/gas/:action` | Authenticated | Development bridge; remove from public production route map |
+| POST | `/auth/logout` | Authenticated | Revokes the session |
+| GET | `/dashboard` | Authenticated/scoped | Counts |
+| GET | `/patients` | `patients:read` | `{items, hasMore}`; CG receives assigned projection only |
+| GET | `/visits` | `patients:read` | `{items, hasMore}`; CG sees own assignments |
+| GET | `/alerts` | `patients:read` | `{items, hasMore}`; empty for CG |
+| GET | `/reviews` | `encounter:review` | `{items, hasMore}` |
+| POST | `/patients` | CM + `patients:write` | CID transformed at Worker before GAS |
+| POST | `/adl-assessments` | `adl:approve` | `adlCreateSchema`; episode resolved from `patientId` |
+| POST | `/ltc-classifications` | `classification:confirm` | `classificationConfirmSchema`; uses latest approved ADL |
+| POST | `/care-plans` | `carePlan:approve` | `carePlanCreateSchema`; creates plan + intervention |
+| POST | `/care-plans/activate` | `carePlan:approve` | `carePlanActivateSchema` |
+| POST | `/visit-encounters` | `patients:read` + assignment | `visitSubmitSchema`; idempotent on `submissionId`; `urgentFlag` raises a HIGH alert |
+| POST | `/encounter-reviews` | `encounter:review` | `encounterReviewSchema` |
+| POST | `/visit-files` | `patients:read` + own encounter | `fileUploadSchema`; ≤ 5 MB, quarantined |
+| POST | `/exports/patients.csv` | CM + `export:phi` | Auth within 5 minutes (sign in again) and `x-export-reason` required |
+
+Request schemas live in `packages/shared/src/actions.ts`. The gateway validates them and forwards only the parsed fields; GAS validates again. There is no generic proxy to GAS actions, and `auth.*` actions are reachable only through the sign-in routes.
+
+### Status codes
+
+| Status | When |
+|---|---|
+| 400 | `INVALID_JSON`, `VALIDATION_FAILED`, business-rule input errors |
+| 401 | `UNAUTHENTICATED`, `INVALID_CREDENTIALS`, `MFA_INVALID`, `REAUTH_REQUIRED` |
+| 403 | `FORBIDDEN`, `MFA_ENROLLMENT_REQUIRED`, `CSRF_CHECK_FAILED`, `ORIGIN_NOT_ALLOWED`, assignment/credential failures |
+| 404 | `NOT_FOUND`, `PATIENT_NOT_FOUND` |
+| 409 | `VERSION_CONFLICT`, duplicates, missing prerequisites (episode, ADL, ruleset, assignment) |
+| 429 | `LOGIN_RATE_LIMITED` |
+| 502 | `UPSTREAM_FAILED` — GAS failed for a reason the user cannot act on; details go to the Worker log only |
 
 GAS receives only signed POST envelopes. Implemented actions:
 
@@ -28,5 +52,5 @@ GAS receives only signed POST envelopes. Implemented actions:
 - `visit.submit`, `encounter.review`
 - `file.upload`
 
-Errors from GAS still use HTTP-compatible JSON envelopes because Apps Script cannot reliably control every status/header. Worker maps external status codes.
+Errors from GAS still use HTTP-compatible JSON envelopes because Apps Script cannot reliably control every status/header. The Worker maps known GAS codes to the statuses above (`apps/gateway/src/errors.ts`); unknown codes become `502 UPSTREAM_FAILED`. After sign-in the assertion `subject` is the internal `userId`; the Google `sub` is used only by `auth.resolveIdentity`.
 
