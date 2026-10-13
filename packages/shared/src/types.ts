@@ -1,0 +1,40 @@
+export type Role = 'ADMIN' | 'CM' | 'CG';
+
+export type Capability =
+  | 'users:manage'
+  | 'patients:read'
+  | 'patients:write'
+  | 'adl:approve'
+  | 'classification:confirm'
+  | 'carePlan:approve'
+  | 'encounter:review'
+  | 'export:phi';
+
+export interface Actor {
+  userId: string;
+  role: Role;
+  capabilities: Capability[];
+  credentialValidUntil?: string;
+}
+
+export interface ApiEnvelope<T> {
+  ok: boolean;
+  code: string;
+  message: string;
+  data: T | null;
+  requestId: string;
+}
+
+export interface VersionedRecord {
+  recordVersion: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+}
+
+export const VISIT_STATUSES = [
+  'PLANNED', 'ASSIGNED', 'IN_PROGRESS', 'SUBMITTED', 'VERIFIED',
+  'RETURNED', 'MISSED', 'CANCELLED'
+] as const;
+export type VisitStatus = (typeof VISIT_STATUSES)[number];
+

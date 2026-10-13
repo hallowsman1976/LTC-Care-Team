@@ -1,0 +1,21 @@
+{
+  "name": "@smart-ltc/gas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "push": "pnpm build && clasp push"
+  },
+  "dependencies": { "@smart-ltc/shared": "workspace:*", "zod": "^3.24.2" },
+  "devDependencies": {
+    "@google/clasp": "^3.0.3-alpha",
+    "@types/google-apps-script": "^1.0.97",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}
+

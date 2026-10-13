@@ -1,0 +1,19 @@
+{
+  "users": [
+    { "userId": "usr-demo-admin", "email": "admin@demo.invalid", "displayName": "ผู้ดูแลระบบจำลอง", "role": "ADMIN" },
+    { "userId": "usr-demo-cm", "email": "cm@demo.invalid", "displayName": "CM ตัวอย่าง", "role": "CM" },
+    { "userId": "usr-demo-cg", "email": "cg@demo.invalid", "displayName": "CG ตัวอย่าง", "role": "CG" }
+  ],
+  "patients": [
+    { "patientId": "pt-demo-001", "localCode": "DEMO-001", "hn": "HN-DEMO-001", "cid": "0000000000000", "fullName": "นายตัวอย่าง หนึ่ง", "birthDate": "1948-01-15", "groupNumber": 3 },
+    { "patientId": "pt-demo-002", "localCode": "DEMO-002", "hn": "HN-DEMO-002", "cid": "1111111111111", "fullName": "นางตัวอย่าง สอง", "birthDate": "1944-08-20", "groupNumber": 2 },
+    { "patientId": "pt-demo-003", "localCode": "DEMO-003", "hn": "HN-DEMO-003", "cid": "2222222222222", "fullName": "นายข้อมูลจำลอง สาม", "birthDate": "1955-05-10", "groupNumber": 1 }
+  ],
+  "ruleset": {
+    "rulesetId": "rules-historical-disabled",
+    "policyName": "ตัวอย่างความถี่เก่า — ห้ามเปิดใช้",
+    "status": "DRAFT",
+    "enabled": false
+  }
+}
+

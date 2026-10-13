@@ -1,0 +1,43 @@
+# Security model
+
+## Status
+
+ค่าเริ่มต้นของระบบเป็น **experimental DEMO สำหรับข้อมูลสังเคราะห์เท่านั้น** ระบบรองรับ `APP_MODE=PILOT` แบบ fail-closed เพื่อเชื่อมข้อมูลจริงเมื่อการตั้งค่าครบ โดยโหมดนี้ไม่ใช่การรับรองทางกฎหมายหรือการอนุมัติ go-live
+
+`PILOT` ปิด password authentication ผ่าน Google Sheets/GAS โดยสมบูรณ์ และยอมรับเฉพาะ Google OpenID Connect ของโดเมน Workspace ที่กำหนด ส่วน password flow เดิมคงอยู่เฉพาะ `DEMO` เพื่อการทดสอบย้อนหลัง
+
+## Trust boundaries
+
+1. Browser เชื่อม same-origin Cloudflare Worker เท่านั้น
+2. Worker ตรวจ Google OIDC หรือ local credential flow, MFA, session, browser floor และ rate limit
+3. Worker ลงลายมือชื่อ assertion ที่ผูก `action`, actor, timestamp, nonce และ SHA-256 ของ payload
+4. GAS ตรวจ assertion และ nonce ก่อนอ่านข้อมูล แล้วบังคับ RBAC/capability ซ้ำ
+5. Sheets/Drive ไม่เป็น security boundary และต้องไม่แชร์แบบ public
+
+## Session
+
+- Cookie: `HttpOnly`, `Secure`, `SameSite=Strict`, `__Host-` prefix
+- อายุสูงสุด 8 ชั่วโมง; inactivity 30 นาที
+- Sensitive export ต้องมี authentication age ไม่เกิน 5 นาทีและระบุเหตุผล
+- Admin/CM ต้องผ่าน TOTP; secret เข้ารหัส AES-GCM ก่อนเก็บใน D1
+
+## Personal data
+
+- CID เข้ารหัส AES-256-GCM ที่ Worker; Sheets เห็น ciphertext และ keyed lookup hash
+- ห้าม log request envelope, password, CID, notes หรือ vital signs
+- Export ใส่ DEMO watermark, `Cache-Control: no-store` และ audit ทั้ง Worker/GAS
+- CG ได้เฉพาะข้อมูลผู้รับบริการที่ได้รับมอบหมายและ field ที่จำเป็น
+
+## Mandatory controls before any real pilot
+
+- Google Workspace domain ที่องค์กรควบคุม พร้อมบังคับ 2-Step Verification และกระบวนการปิดบัญชีบุคลากร
+- independent penetration test และ direct-GAS-bypass test
+- approved clinical rules, escalation protocol, legal basis, retention and incident response
+- managed-device/offline threat model
+- malware scanner integration; `PENDING_SCAN` download remains denied
+- secret rotation and recovery runbook; verified backup/restore
+- data processing register, privacy notice version, lawful basis per episode/purpose และช่องทางใช้สิทธิของเจ้าของข้อมูล
+- ยืนยันว่า Google Workspace edition, Drive/Sheets sharing, audit retention และ data location สอดคล้องกับนโยบายองค์กร
+
+ระบบจะไม่ทำให้รายการข้างต้นสำเร็จโดยอัตโนมัติ ดู `PILOT_RUNBOOK.md` สำหรับ gate ก่อนเปิดโหมดจริง
+

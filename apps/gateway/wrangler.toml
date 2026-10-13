@@ -1,0 +1,17 @@
+name = "smart-ltc-gateway-demo"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+[vars]
+APP_MODE = "DEMO"
+GAS_EXEC_URL = "https://script.google.com/macros/s/REPLACE_ME/exec"
+
+[[d1_databases]]
+binding = "SECURITY_DB"
+database_name = "smart-ltc-security-demo"
+database_id = "replace-me"
+
+[[kv_namespaces]]
+binding = "SECURITY_KV"
+id = "replace-me"
+
