@@ -17,9 +17,9 @@ GAS_EXEC_URL = "https://script.google.com/macros/s/AKfycbyy88DJ-eKDt9mYt2R5Y4y57
 [[d1_databases]]
 binding = "SECURITY_DB"
 database_name = "smart-ltc-security-demo"
-database_id = "replace-me"
+database_id = "c347c344-935c-41e4-91bd-2beb02b38553"
 
 [[kv_namespaces]]
 binding = "SECURITY_KV"
-id = "replace-me"
+id = "9726fb0de3fe4b1887d102ad8e7a01ba"
 
