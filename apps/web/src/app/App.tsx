@@ -16,14 +16,17 @@ function UnsupportedBrowser() {
 }
 
 export function App() {
-  const me = useQuery({ queryKey: ['me'], queryFn: getMe });
+  // A 401 is an answer, not a transient failure: show sign-in at once instead of retrying.
+  const me = useQuery({ queryKey: ['me'], queryFn: getMe, retry: (count, error) => !(error instanceof ApiError && error.status === 401) && count < 1 });
   if (!browserSupported()) return <UnsupportedBrowser />;
-  if (me.isLoading) return <Loading />;
+  // isPending (not isLoading): a paused query has no data yet but is not fetching either.
+  if (me.isPending) return <Loading />;
   if (me.error instanceof ApiError && me.error.code === 'UNAUTHENTICATED') return <Login />;
   if (me.error) return <main className="p-6"><ErrorState message={me.error.message}/></main>;
-  return <Routes><Route element={<Layout actor={me.data!}/>}>
-    <Route index element={<Dashboard actor={me.data!}/>}/>
-    <Route path="patients" element={<Patients actor={me.data!}/>}/>
+  const actor = me.data;
+  return <Routes><Route element={<Layout actor={actor}/>}>
+    <Route index element={<Dashboard actor={actor}/>}/>
+    <Route path="patients" element={<Patients actor={actor}/>}/>
     <Route path="visits" element={<Visits/>}/><Route path="calendar" element={<Calendar/>}/>
     <Route path="alerts" element={<Alerts/>}/><Route path="reviews" element={<Reviews/>}/>
     <Route path="patients/new" element={<PatientForm/>}/>
