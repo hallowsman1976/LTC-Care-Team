@@ -1,4 +1,4 @@
-name = "smart-ltc-gateway-demo"
+name = "ltc-care-team"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 

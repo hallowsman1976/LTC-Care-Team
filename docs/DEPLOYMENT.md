@@ -36,9 +36,19 @@ The Worker serves both the web app (static assets from `apps/web/dist`) and the 
 1. Create D1 and KV resources and update IDs in `apps/gateway/wrangler.toml` locally.
 2. Apply `apps/gateway/schema.sql`.
 3. Add secrets using `wrangler secret put`; never write them to `wrangler.toml`.
-4. Build and deploy: `pnpm -r build` (builds the web app before the Worker), then `pnpm --filter @smart-ltc/gateway deploy`. Deploy only to an isolated DEMO account/domain.
+4. Build and deploy: `pnpm -r build` (builds the web app before the Worker), then `pnpm --filter @smart-ltc/gateway run deploy` (`run` is required: plain `pnpm deploy` is a different, built-in pnpm command). Deploy only to an isolated DEMO account/domain.
 
 Static responses get security headers (including the CSP) from `apps/web/public/_headers`.
+
+For Cloudflare **Workers Builds** (deploy on git push), set in the Worker's Settings → Build:
+
+| Setting | Value |
+|---|---|
+| Root directory | `/` (repository root, so the web app is built too) |
+| Build command | `pnpm run build` |
+| Deploy command | `pnpm --filter @smart-ltc/gateway run deploy` |
+
+The default deploy command `npx wrangler deploy` runs at the repository root, finds no `wrangler.toml` there and fails. The Worker name in `wrangler.toml` must match the Worker's name in Cloudflare (`ltc-care-team`).
 
 ## GitHub Pages preview
 
