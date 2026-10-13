@@ -16,6 +16,7 @@ await build({
       'function initializePilotWorkbook() { return SmartLtc.initializePilotWorkbook(); }',
       'function setDemoCredential(userId, identifier, password) { return SmartLtc.setDemoCredential(userId, identifier, password); }',
       'function diagnoseDemoLogin(identifier, password) { return SmartLtc.diagnoseDemoLogin(identifier, password); }',
+      'function seedDemoData(cgIdentifier) { return SmartLtc.seedDemoData(cgIdentifier); }',
       'function runVisitScheduler() { return SmartLtc.runVisitScheduler(); }',
       // Trigger handlers receive an event object; never pass it through as a parameter.
       'function archiveAuditLogs() { return SmartLtc.archiveAuditLogs(); }',

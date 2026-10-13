@@ -14,6 +14,7 @@ import { initializeDemoWorkbook as initialize } from './initializer';
 import { runScheduler } from './jobs/schedule';
 import { setDemoCredential as setCredential } from './admin/credentials';
 import { diagnoseDemoLogin as diagnoseLogin } from './admin/diagnose';
+import { seedDemoData as seedDemo } from './admin/demoData';
 import { runLoadProbe as probe, seedLoadTestData as seedLoad, type LoadTestOptions } from './admin/loadTest';
 import { archiveAuditLogs as archiveAudit, installAuditArchiveTrigger as installArchiveTrigger } from './jobs/auditArchive';
 import { dashboardSummary, listAlerts, listReviews, listVisits } from './services/operations';
@@ -115,4 +116,8 @@ export function runLoadProbe(repeats = 3): ReturnType<typeof probe> {
 
 export function diagnoseDemoLogin(identifier: string, password?: string): ReturnType<typeof diagnoseLogin> {
   return diagnoseLogin(identifier, password);
+}
+
+export function seedDemoData(cgIdentifier?: string): ReturnType<typeof seedDemo> {
+  return seedDemo(cgIdentifier);
 }
