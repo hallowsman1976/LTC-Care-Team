@@ -44,7 +44,7 @@ const otpauth = `otpauth://totp/${encodeURIComponent(`Smart LTC Demo:${label}`)}
 if (json) {
   console.log(JSON.stringify({ userId, secret, ciphertext, sql, otpauth }));
 } else {
-  console.log('1) Store the encrypted secret in D1 (run from apps/gateway):');
+  console.log('1) Store the encrypted secret in D1 (run from the repository root):');
   console.log(`   npx wrangler d1 execute smart-ltc-security-demo --remote --command "${sql}"`);
   console.log('\n2) Add this URI to the user\'s authenticator app (or render it as a QR code), then discard it:');
   console.log(`   ${otpauth}`);

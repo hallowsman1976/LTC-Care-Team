@@ -1,12 +1,13 @@
 name = "ltc-care-team"
-main = "src/index.ts"
+# Lives at the repository root so Cloudflare Workers Builds' default `npx wrangler deploy` finds it.
+main = "apps/gateway/src/index.ts"
 compatibility_date = "2026-10-01"
 
 # The Worker serves the built web app and the API from one origin (the session cookie is
 # __Host- and SameSite=Strict). Only /api/* runs the Worker; everything else is a static asset,
 # with unknown paths falling back to index.html for client-side routes. Build apps/web first.
 [assets]
-directory = "../web/dist"
+directory = "apps/web/dist"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
 

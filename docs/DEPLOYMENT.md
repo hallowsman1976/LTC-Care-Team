@@ -5,7 +5,7 @@
 1. Install Node.js 22 and pnpm 11 (see README for Windows).
 2. Copy `.env.example` to local environment configuration; never commit values.
 3. Run `pnpm install`, then `pnpm check`.
-4. Copy `apps/gateway/.dev.vars.example` to `apps/gateway/.dev.vars` and start the Worker with `pnpm --filter @smart-ltc/gateway dev`.
+4. Copy `.dev.vars.example` to `.dev.vars` (repository root, next to `wrangler.toml`) and start the Worker with `pnpm --filter @smart-ltc/gateway dev`.
 5. Start web with `pnpm --filter @smart-ltc/web dev`.
 
 The web app proxies `/api` to `127.0.0.1:8787`. In this local setup the role switcher sends `x-demo-role` and the Worker answers from synthetic fixtures without calling GAS. A deployed DEMO ignores the header (see `SECURITY.md`).
@@ -33,7 +33,7 @@ The web app proxies `/api` to `127.0.0.1:8787`. In this local setup the role swi
 
 The Worker serves both the web app (static assets from `apps/web/dist`) and the API under `/api/*`, on one origin. This is required: the session cookie is `__Host-` and `SameSite=Strict`, and the API has no CORS.
 
-1. Create D1 and KV resources and update IDs in `apps/gateway/wrangler.toml` locally.
+1. Create D1 and KV resources and update their IDs in the root `wrangler.toml`.
 2. Apply `apps/gateway/schema.sql`.
 3. Add secrets using `wrangler secret put`; never write them to `wrangler.toml`.
 4. Build and deploy: `pnpm -r build` (builds the web app before the Worker), then `pnpm --filter @smart-ltc/gateway run deploy` (`run` is required: plain `pnpm deploy` is a different, built-in pnpm command). Deploy only to an isolated DEMO account/domain.
@@ -46,9 +46,9 @@ For Cloudflare **Workers Builds** (deploy on git push), set in the Worker's Sett
 |---|---|
 | Root directory | `/` (repository root, so the web app is built too) |
 | Build command | `pnpm run build` |
-| Deploy command | `pnpm --filter @smart-ltc/gateway run deploy` |
+| Deploy command | `npx wrangler deploy` (the default) or `pnpm --filter @smart-ltc/gateway run deploy` |
 
-The default deploy command `npx wrangler deploy` runs at the repository root, finds no `wrangler.toml` there and fails. The Worker name in `wrangler.toml` must match the Worker's name in Cloudflare (`ltc-care-team`).
+`wrangler.toml` lives at the repository root so the default deploy command finds it. The Worker name in it must match the Worker's name in Cloudflare (`ltc-care-team`).
 
 ## GitHub Pages preview
 
