@@ -7,6 +7,7 @@ playwright-report/
 .wrangler/
 .clasp.json
 .env
+.dev.vars
 .env.*
 !.env.example
 *.log
@@ -14,3 +15,8 @@ playwright-report/
 .DS_Store
 Thumbs.db
 
+
+# Local agent tooling
+.claude/
+.agents/
+skills-lock.json

@@ -6,6 +6,8 @@
 
 ## เริ่มใช้งานในเครื่อง
 
+ต้องมี `pnpm` 11.25.0 อยู่ใน PATH เพราะสคริปต์ `check` เรียก `pnpm` ซ้อนอยู่ข้างใน การเรียกผ่าน `corepack pnpm check` จึงใช้ไม่ได้ บน Windows ที่ติดตั้ง Node ไว้ใน `Program Files` คำสั่ง `corepack enable` ต้องเปิด terminal แบบ Administrator หรือติดตั้งแทนด้วย `npm install -g pnpm@11.25.0`
+
 ```bash
 pnpm install
 pnpm dev
