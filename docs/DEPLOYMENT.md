@@ -20,6 +20,15 @@ The web app proxies `/api` to `127.0.0.1:8787`. In this local setup the role swi
 6. Deploy the Web App and set its URL as `GAS_EXEC_URL` in Worker.
 7. Direct GAS access must still fail without a valid Worker assertion.
 
+## Audit log archiving (DEMO and PILOT)
+
+`AuditLogs` grows with every write. A nightly job moves rows from previous months into one spreadsheet per month, so the live sheet holds about one month of entries.
+
+1. Create a private Drive folder for archives (no external sharing; same retention owner as the workbook) and set Script Property `AUDIT_ARCHIVE_FOLDER_ID`.
+2. Run `installAuditArchiveTrigger` once from the editor. It schedules `archiveAuditLogs` daily between 02:00 and 03:00 and replaces any earlier trigger.
+3. Each run moves up to 2,000 rows into `SmartLTC AuditLogs yyyy-MM`. It copies first, verifies by id and only then deletes, so a failed run is safe to repeat. Results are recorded in `JobRuns` (`AUDIT_ARCHIVE`). After a backlog, run it manually a few times or let the nightly runs catch up.
+4. Archives are never deleted automatically. Retention and disposal follow the DPO's schedule.
+
 ## Cloudflare demo gateway
 
 1. Create D1 and KV resources and update IDs in `apps/gateway/wrangler.toml` locally.

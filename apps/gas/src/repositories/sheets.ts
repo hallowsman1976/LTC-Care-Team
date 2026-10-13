@@ -71,6 +71,15 @@ export function appendLog(name: string, record: RowRecord): RowRecord {
   return record;
 }
 
+/** Writes many records in one setValues call (appendRow per record is far too slow for bulk data). */
+export function bulkAppend(sheet: GoogleAppsScript.Spreadsheet.Sheet, headers: string[], records: RowRecord[]): void {
+  if (records.length === 0) return;
+  sheet.getRange(sheet.getLastRow() + 1, 1, records.length, headers.length)
+    .setValues(records.map((record) => headers.map((header) => record[header] ?? '')));
+}
+
+export { headersOf };
+
 let lockDepth = 0;
 
 /**

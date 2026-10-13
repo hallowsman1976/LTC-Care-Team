@@ -13,6 +13,8 @@ import { envelope, jsonOutput } from './utils/responses';
 import { initializeDemoWorkbook as initialize } from './initializer';
 import { runScheduler } from './jobs/schedule';
 import { setDemoCredential as setCredential } from './admin/credentials';
+import { runLoadProbe as probe, seedLoadTestData as seedLoad, type LoadTestOptions } from './admin/loadTest';
+import { archiveAuditLogs as archiveAudit, installAuditArchiveTrigger as installArchiveTrigger } from './jobs/auditArchive';
 import { dashboardSummary, listAlerts, listReviews, listVisits } from './services/operations';
 
 // A 5 MB upload is ~6.7 MB as base64, plus the envelope.
@@ -86,4 +88,21 @@ export function runVisitScheduler(): ReturnType<typeof runScheduler> {
 
 export function setDemoCredential(userId: string, identifier: string, password: string): ReturnType<typeof setCredential> {
   return setCredential(userId, identifier, password);
+}
+
+export function archiveAuditLogs(): ReturnType<typeof archiveAudit> {
+  requireOperationalMode();
+  return archiveAudit();
+}
+
+export function installAuditArchiveTrigger(): string {
+  return installArchiveTrigger();
+}
+
+export function seedLoadTestData(options?: LoadTestOptions): ReturnType<typeof seedLoad> {
+  return seedLoad(options);
+}
+
+export function runLoadProbe(repeats = 3): ReturnType<typeof probe> {
+  return probe(doPost, repeats);
 }

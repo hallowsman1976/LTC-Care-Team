@@ -15,7 +15,12 @@ await build({
       'function initializeDemoWorkbook() { return SmartLtc.initializeDemoWorkbook(); }',
       'function initializePilotWorkbook() { return SmartLtc.initializePilotWorkbook(); }',
       'function setDemoCredential(userId, identifier, password) { return SmartLtc.setDemoCredential(userId, identifier, password); }',
-      'function runVisitScheduler() { return SmartLtc.runVisitScheduler(); }'
+      'function runVisitScheduler() { return SmartLtc.runVisitScheduler(); }',
+      // Trigger handlers receive an event object; never pass it through as a parameter.
+      'function archiveAuditLogs() { return SmartLtc.archiveAuditLogs(); }',
+      'function installAuditArchiveTrigger() { return SmartLtc.installAuditArchiveTrigger(); }',
+      'function seedLoadTestData(options) { return SmartLtc.seedLoadTestData(options); }',
+      'function runLoadProbe(repeats) { return SmartLtc.runLoadProbe(repeats); }'
     ].join('\n')
   }
 });

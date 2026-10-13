@@ -50,6 +50,7 @@ export class FakeSheet {
   }
   appendRow(row: Cell[]) { fakeGas.onWrite?.(this.name); this.rows.push([...row]); }
   deleteRow(row: number) { this.rows.splice(row - 1, 1); }
+  deleteRows(row: number, count: number) { this.rows.splice(row - 1, count); }
   setFrozenRows() {}
 }
 
@@ -59,6 +60,9 @@ export interface FakeGasState {
   cache: Map<string, string>;
   lockDepth: number;
   lockAcquisitions: number;
+  /** Spreadsheets created through SpreadsheetApp.create (the audit archives). */
+  archives: Map<string, { name: string; folderId: string | null; sheet: FakeSheet }>;
+  folders: Map<string, unknown>;
   /** getDataRange() calls per sheet, to catch whole-sheet scans. */
   fullReads: Map<string, number>;
   now: Date;
@@ -67,7 +71,7 @@ export interface FakeGasState {
 }
 
 export const fakeGas: FakeGasState = {
-  sheets: new Map(), properties: {}, cache: new Map(), lockDepth: 0, lockAcquisitions: 0, fullReads: new Map(), now: new Date()
+  sheets: new Map(), properties: {}, cache: new Map(), lockDepth: 0, lockAcquisitions: 0, fullReads: new Map(), archives: new Map(), folders: new Map(), now: new Date()
 };
 
 /** Installs the fake services with every workbook sheet created and headed. */
@@ -84,8 +88,22 @@ export function installFakeGas(properties: Record<string, string> = {}): FakeGas
     getSheetByName: (name: string) => fakeGas.sheets.get(name) ?? null,
     insertSheet: (name: string) => { const sheet = new FakeSheet(name, []); fakeGas.sheets.set(name, sheet); return sheet; }
   };
+  fakeGas.archives = new Map();
+  fakeGas.folders = new Map();
+  const archiveSpreadsheet = (id: string) => {
+    const archive = fakeGas.archives.get(id);
+    if (!archive) throw new Error(`fake: no spreadsheet ${id}`);
+    return { getId: () => id, getSheets: () => [archive.sheet] };
+  };
   const globals = globalThis as Record<string, unknown>;
-  globals.SpreadsheetApp = { openById: () => spreadsheet };
+  globals.SpreadsheetApp = {
+    openById: (id: string) => (id === fakeGas.properties.SPREADSHEET_ID ? spreadsheet : archiveSpreadsheet(id)),
+    create: (name: string) => {
+      const id = `ss-${randomUUID()}`;
+      fakeGas.archives.set(id, { name, folderId: null, sheet: new FakeSheet(`${name}/Sheet1`, []) });
+      return archiveSpreadsheet(id);
+    }
+  };
   globals.PropertiesService = { getScriptProperties: () => ({ getProperty: (name: string) => fakeGas.properties[name] ?? null }) };
   globals.CacheService = { getScriptCache: () => ({ get: (key: string) => fakeGas.cache.get(key) ?? null, put: (key: string, value: string) => { fakeGas.cache.set(key, value); } }) };
   globals.LockService = {
@@ -98,7 +116,18 @@ export function installFakeGas(properties: Record<string, string> = {}): FakeGas
       releaseLock: () => { fakeGas.lockDepth = Math.max(0, fakeGas.lockDepth - 1); }
     })
   };
-  globals.DriveApp = { getFolderById: () => ({ createFile: () => ({ getId: () => `drive-${randomUUID()}` }) }) };
+  const folder = (folderId: string) => ({
+    getId: () => folderId,
+    createFile: () => ({ getId: () => `drive-${randomUUID()}` }),
+    getFilesByName: (name: string) => {
+      const matches = [...fakeGas.archives.entries()].filter(([, archive]) => archive.name === name && archive.folderId === folderId).map(([id]) => id);
+      return { hasNext: () => matches.length > 0, next: () => ({ getId: () => matches.shift()! }) };
+    }
+  });
+  globals.DriveApp = {
+    getFolderById: (folderId: string) => folder(folderId),
+    getFileById: (id: string) => ({ moveTo: (target: { getId(): string }) => { fakeGas.archives.get(id)!.folderId = target.getId(); } })
+  };
   globals.ContentService = {
     MimeType: { JSON: 'JSON' },
     createTextOutput: (text: string) => ({ text, setMimeType() { return this; }, getContent() { return text; } })
@@ -116,6 +145,7 @@ export function installFakeGas(properties: Record<string, string> = {}): FakeGas
       const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' })
         .formatToParts(date).map((part) => [part.type, part.value]));
       if (format === 'yyyy-MM-dd') return `${parts.year}-${parts.month}-${parts.day}`;
+      if (format === 'yyyy-MM') return `${parts.year}-${parts.month}`;
       if (format === 'd') return String(Number(parts.day));
       if (format === 'u') return String(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(String(parts.weekday)) + 1);
       throw new Error(`fake formatDate: unsupported ${format}`);
