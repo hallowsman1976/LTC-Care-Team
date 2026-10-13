@@ -13,3 +13,14 @@ test('shows the permanent demo warning', async ({ page }, testInfo) => {
   await expect(page.getByTestId('environment-banner')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('dashboard.png'), fullPage: true });
 });
+
+test('shows the demo sign-in form when there is no session', async ({ page }) => {
+  await page.route('**/api/v1/auth/me', async (route) => route.fulfill({
+    status: 401,
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: false, code: 'UNAUTHENTICATED', message: 'กรุณาเข้าสู่ระบบ', requestId: 'test', data: null })
+  }));
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'เข้าสู่ระบบทดลอง' })).toBeVisible();
+  await expect(page.getByLabel('รหัสผ่าน')).toBeVisible();
+});

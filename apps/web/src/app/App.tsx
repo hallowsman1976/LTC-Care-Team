@@ -6,7 +6,7 @@ import { Patients } from '../features/Patients';
 import { Alerts, Calendar, Placeholder, Reviews, Visits } from '../features/WorkflowPages';
 import { browserSupported } from '../lib/browser';
 import { getMe } from '../lib/api';
-import { ApiError, isDemoMode } from '../lib/api';
+import { ApiError } from '../lib/api';
 import { Login } from '../features/Login';
 import { Layout } from './Layout';
 import { AdlForm, CarePlanForm, ClassificationForm, PatientForm, VisitForm } from '../features/ClinicalForms';
@@ -19,7 +19,7 @@ export function App() {
   const me = useQuery({ queryKey: ['me'], queryFn: getMe });
   if (!browserSupported()) return <UnsupportedBrowser />;
   if (me.isLoading) return <Loading />;
-  if (!isDemoMode && me.error instanceof ApiError && me.error.code === 'UNAUTHENTICATED') return <Login />;
+  if (me.error instanceof ApiError && me.error.code === 'UNAUTHENTICATED') return <Login />;
   if (me.error) return <main className="p-6"><ErrorState message={me.error.message}/></main>;
   return <Routes><Route element={<Layout actor={me.data!}/>}>
     <Route index element={<Dashboard actor={me.data!}/>}/>

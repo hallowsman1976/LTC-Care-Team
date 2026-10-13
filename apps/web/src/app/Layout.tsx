@@ -1,7 +1,7 @@
 import { Bell, CalendarDays, ClipboardList, Home, LogOut, Users } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import type { Actor, Role } from '@smart-ltc/shared';
-import { appMode, getDemoRole, isDemoMode, logout, setDemoRole } from '../lib/api';
+import { appMode, getDemoRole, isDemoMode, isLocalDemo, logout, setDemoRole } from '../lib/api';
 
 const nav = [
   { to: '/', label: 'หน้าหลัก', icon: Home },
@@ -29,7 +29,7 @@ export function Layout({ actor }: { actor: Actor }) {
       <header className="sticky top-12 z-40 flex min-h-16 items-center justify-between border-b border-slate-200 bg-white px-4 md:px-8">
         <div><p className="font-bold">{actor.role === 'CM' ? 'ผู้จัดการการดูแล' : actor.role === 'CG' ? 'ผู้ดูแล' : 'ผู้ดูแลระบบ'}</p><p className="text-xs text-slate-500">Asia/Bangkok</p></div>
         <div className="flex items-center gap-2">
-          {isDemoMode && <><label htmlFor="demo-role" className="sr-only">สลับบทบาทจำลอง</label>
+          {isLocalDemo && <><label htmlFor="demo-role" className="sr-only">สลับบทบาทจำลอง</label>
           <select id="demo-role" value={getDemoRole()} onChange={(event) => switchRole(event.target.value as Lowercase<Role>)} className="rounded-lg border border-slate-300 px-2" aria-label="สลับบทบาทจำลอง">
             <option value="admin">Admin</option><option value="cm">CM</option><option value="cg">CG</option>
           </select></>}
