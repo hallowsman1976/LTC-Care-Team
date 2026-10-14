@@ -15,7 +15,7 @@ export function MoreNotice({ page }: { page: ListPage<unknown> }) {
   return page.hasMore ? <p role="note" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">แสดง {page.items.length} รายการแรก ยังมีรายการเพิ่มเติม</p> : null;
 }
 
-interface VisitItem { visitId: string; visitDateTime: string; expectedEndTime?: string; visitType?: string; status: string }
+interface VisitItem { visitId: string; visitDateTime: string; expectedEndTime?: string; visitType?: string; status: string; patientName?: string }
 interface AlertItem { alertId: string; severity: string; alertType: string; eventAt: string; status: string }
 interface ReviewItem { encounterId: string; visitId: string; performerId: string; endedAt: string; status: string; recordVersion: number }
 
@@ -26,7 +26,7 @@ function useVisits() {
 export function Visits({ actor }: { actor: Actor }) {
   const query = useVisits();
   return <Page title="งานเยี่ยมบ้าน" description="รายการที่ได้รับมอบหมายและสถานะการส่งงาน">
-    {query.isLoading ? <Loading/> : query.error ? <ErrorState message={query.error.message}/> : query.data?.items.length ? <div className="space-y-3"><MoreNotice page={query.data}/>{query.data.items.map((visit) => <Card key={visit.visitId}><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3"><ClipboardCheck aria-hidden className="text-primary"/><div><p className="font-bold">{new Date(visit.visitDateTime).toLocaleString('th-TH')}</p><p className="text-sm text-slate-500">{visit.visitType || 'เยี่ยมตาม Care Plan'}</p></div></div><div className="flex flex-wrap items-center justify-end gap-2"><Status tone={visit.status === 'VERIFIED' ? 'success' : visit.status === 'SUBMITTED' ? 'warning' : 'neutral'}>{visit.status}</Status>{actor.role === 'CG' && visit.status === 'ASSIGNED' && <Link to={`/visits/${encodeURIComponent(visit.visitId)}`} className="inline-flex min-h-11 items-center rounded-xl bg-primary px-3 text-sm font-semibold text-white">บันทึกการเยี่ยม</Link>}</div></div></Card>)}</div> : <Card><p className="text-center text-slate-500">ไม่มีงานเยี่ยมในขณะนี้</p></Card>}
+    {query.isLoading ? <Loading/> : query.error ? <ErrorState message={query.error.message}/> : query.data?.items.length ? <div className="space-y-3"><MoreNotice page={query.data}/>{query.data.items.map((visit) => <Card key={visit.visitId}><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3"><ClipboardCheck aria-hidden className="text-primary"/><div><p className="font-bold">{new Date(visit.visitDateTime).toLocaleString('th-TH')}</p><p className="text-sm text-slate-500">{visit.patientName ? `${visit.patientName} · ` : ''}{visit.visitType || 'เยี่ยมตาม Care Plan'}</p></div></div><div className="flex flex-wrap items-center justify-end gap-2"><Status tone={visit.status === 'VERIFIED' ? 'success' : visit.status === 'SUBMITTED' ? 'warning' : 'neutral'}>{visit.status}</Status>{actor.role === 'CG' && visit.status === 'ASSIGNED' && <Link to={`/visits/${encodeURIComponent(visit.visitId)}`} className="inline-flex min-h-11 items-center rounded-xl bg-primary px-3 text-sm font-semibold text-white">บันทึกการเยี่ยม</Link>}</div></div></Card>)}</div> : <Card><p className="text-center text-slate-500">ไม่มีงานเยี่ยมในขณะนี้</p></Card>}
   </Page>;
 }
 

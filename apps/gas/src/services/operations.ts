@@ -27,9 +27,18 @@ export function dashboardSummary(actor: Actor): Record<string, number> {
 
 export function listVisits(actor: Actor): Page<RowRecord> {
   requireCapability(actor, 'patients:read');
-  return mapPage(pageOf('VisitSchedules', (row) => visitVisibleTo(actor, row), 50), (row) => ({
+  const page = pageOf('VisitSchedules', (row) => visitVisibleTo(actor, row), 50);
+  // Caregivers work by name, not episode id: resolve names for this page only.
+  const episodeIds = new Set(page.items.map((row) => String(row.episodeId)));
+  const patientOfEpisode = new Map(listAll('CareEpisodes', (row) => episodeIds.has(String(row.episodeId)))
+    .map((row) => [String(row.episodeId), String(row.patientId)]));
+  const patientIds = new Set(patientOfEpisode.values());
+  const nameOfPatient = new Map(listAll('Patients', (row) => patientIds.has(String(row.patientId)))
+    .map((row) => [String(row.patientId), String(row.fullName)]));
+  return mapPage(page, (row) => ({
     visitId: row.visitId, episodeId: row.episodeId, visitDateTime: row.visitDateTime,
-    expectedEndTime: row.expectedEndTime, visitType: row.visitType, status: row.status
+    expectedEndTime: row.expectedEndTime, visitType: row.visitType, status: row.status,
+    patientName: nameOfPatient.get(patientOfEpisode.get(String(row.episodeId)) ?? '') ?? ''
   }));
 }
 

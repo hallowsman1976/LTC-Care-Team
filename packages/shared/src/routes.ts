@@ -36,7 +36,7 @@ export const READ_ROUTES: Record<string, ReadRoute> = {
   '/patients': { action: 'patient.list', payload: { limit: 50 }, demo: (actor) => page(actor.role === 'CG' ? demoPatients.slice(0, 1) : demoPatients) },
   '/visits': {
     action: 'visit.list',
-    demo: () => page([{ visitId: 'vs-demo-001', episodeId: 'ep-demo-001', visitDateTime: '2026-10-13T09:00:00+07:00', expectedEndTime: '2026-10-13T10:00:00+07:00', visitType: 'เยี่ยมบ้านตาม Care Plan', status: 'ASSIGNED' }])
+    demo: () => page([{ visitId: 'vs-demo-001', episodeId: 'ep-demo-001', visitDateTime: '2026-10-13T09:00:00+07:00', expectedEndTime: '2026-10-13T10:00:00+07:00', visitType: 'เยี่ยมบ้านตาม Care Plan', status: 'ASSIGNED', patientName: 'นายตัวอย่าง หนึ่ง' }])
   },
   '/alerts': {
     action: 'alert.list',

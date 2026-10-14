@@ -24,6 +24,8 @@ describe('seedDemoData', () => {
     expect(call('patient.list', 'usr-cg-live', { limit: 25 })).toMatchObject({ ok: true, data: { items: { length: 3 } } });
     expect(call('dashboard.summary', 'usr-cg-live')).toMatchObject({ ok: true, data: { dueToday: 3, overdue: 4 } });
     expect(call('visit.list', 'usr-cg-live')).toMatchObject({ ok: true, data: { items: { length: 13 } } });
+    const listed = call('visit.list', 'usr-cg-live').data as { items: Array<{ patientName: string }> };
+    expect(new Set(listed.items.map((item) => item.patientName))).toEqual(new Set(['นางสมศรี ตัวอย่าง', 'นายบุญมา ทดลอง', 'นางทองใบ สาธิต']));
 
     expect(call('review.list', DEMO_CM_USER_ID)).toMatchObject({ ok: true, data: { items: [{ encounterId: 'enc-demo-001-m3' }] } });
     expect(records('ServiceRuleSets')[0]).toMatchObject({ status: 'APPROVED' });

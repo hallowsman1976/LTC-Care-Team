@@ -66,3 +66,13 @@ describe('care plan length shortcuts', () => {
     for (const { label } of SERVICE_TYPES) expect(label.length).toBeLessThanOrEqual(80);
   });
 });
+
+describe('visit notes', () => {
+  it('turn the chosen answers into readable lines within the server limit', async () => {
+    const { composeVisitNotes, VISIT_OBSERVATIONS } = await import('./ClinicalForms');
+    const notes = composeVisitNotes('PARTIAL', ['ผู้ป่วยปฏิเสธ'], { eating: 'กินได้น้อยลง', skin: '' }, '  ญาติขอให้โทรแจ้งก่อนมา  ');
+    expect(notes.split('\n')).toEqual(['กิจกรรม: ทำได้บางส่วน (ผู้ป่วยปฏิเสธ)', 'การกินอาหารและน้ำ: กินได้น้อยลง', 'บันทึกเพิ่มเติม: ญาติขอให้โทรแจ้งก่อนมา']);
+    const longest = Object.fromEntries(VISIT_OBSERVATIONS.map(({ key, options }) => [key, options.reduce((a, b) => (a.length >= b.length ? a : b))]));
+    expect(composeVisitNotes('NOT_DONE', ['ผู้ป่วยปฏิเสธ', 'ผู้ป่วยเหนื่อยหรือไม่สุขสบาย', 'ผู้ป่วยไม่อยู่บ้าน', 'ไม่มีญาติอยู่ด้วย', 'อุปกรณ์ไม่พร้อม', 'หมดเวลา'], longest, 'ก'.repeat(1500)).length).toBeLessThanOrEqual(2000);
+  });
+});
