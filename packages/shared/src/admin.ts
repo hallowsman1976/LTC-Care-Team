@@ -6,10 +6,60 @@ import { patientCreateSchema } from './schemas';
 
 const entityId = z.string().trim().min(1).max(80);
 
+export const EDUCATION_LEVELS = [
+  ['PRIMARY', 'ประถมศึกษา'],
+  ['LOWER_SECONDARY', 'มัธยมศึกษาตอนต้น'],
+  ['UPPER_SECONDARY', 'มัธยมศึกษาตอนปลาย / ปวช.'],
+  ['DIPLOMA', 'อนุปริญญา / ปวส.'],
+  ['BACHELOR', 'ปริญญาตรี'],
+  ['POSTGRADUATE', 'สูงกว่าปริญญาตรี']
+] as const;
+
+export const ORGANIZATION_TYPES = [
+  ['HEALTH_PROMOTING_HOSPITAL', 'โรงพยาบาลส่งเสริมสุขภาพตำบล (รพ.สต.)'],
+  ['LOCAL_GOVERNMENT', 'องค์กรปกครองส่วนท้องถิ่น (อบต./เทศบาล)'],
+  ['HOSPITAL', 'โรงพยาบาล'],
+  ['ELDERLY_CENTER', 'ศูนย์พัฒนาคุณภาพชีวิตผู้สูงอายุ'],
+  ['OTHER', 'อื่น ๆ']
+] as const;
+
+/** Courses offered as one-tap choices; any other course can be typed in. */
+export const COMMON_CG_COURSES = [
+  'หลักสูตรผู้ดูแลผู้สูงอายุ (Caregiver) 70 ชั่วโมง',
+  'หลักสูตรผู้ช่วยเหลือดูแลผู้สูงอายุ 420 ชั่วโมง',
+  'หลักสูตรฟื้นฟูศักยภาพผู้ดูแลผู้สูงอายุ (Refresher)',
+  'การปฐมพยาบาลและช่วยฟื้นคืนชีพขั้นพื้นฐาน (CPR)'
+] as const;
+
+const enumOf = <T extends readonly (readonly [string, string])[]>(pairs: T) => z.enum(pairs.map(([value]) => value) as [T[number][0], ...T[number][0][]], { errorMap: () => ({ message: 'กรุณาเลือก' }) });
+const pastDate = z.string().date('เลือกวันที่').refine((value) => value <= new Date().toISOString().slice(0, 10), 'วันที่ต้องไม่เกินวันนี้');
+
+export const MAX_PROFILE_PHOTO_BASE64 = 700_000;
+
+export const caregiverTrainingSchema = z.object({
+  course: z.string().trim().min(2, 'ระบุชื่อหลักสูตร').max(160),
+  provider: z.string().trim().max(160),
+  completedOn: pastDate,
+  hours: z.number({ invalid_type_error: 'ระบุเป็นตัวเลข' }).int().min(1).max(2000).optional()
+});
+
 export const caregiverCreateSchema = z.object({
   displayName: z.string().trim().min(2, 'กรอกชื่อ–สกุลอย่างน้อย 2 ตัวอักษร').max(120),
   username: z.string().trim().toLowerCase().regex(/^[a-z0-9._-]{3,40}$/, 'ใช้ a–z ตัวเลข จุด ขีด 3–40 ตัว'),
-  password: z.string().min(12, 'รหัสผ่านอย่างน้อย 12 ตัวอักษร').max(200)
+  password: z.string().min(12, 'รหัสผ่านอย่างน้อย 12 ตัวอักษร').max(200),
+  cid: z.string().trim().regex(/^\d{13}$/, 'กรุณากรอกเลข 13 หลัก'),
+  birthDate: pastDate,
+  phone: z.string().transform((value) => value.replace(/[\s-]/g, '')).pipe(z.string().regex(/^0\d{8,9}$/, 'เบอร์โทร 9–10 หลัก ขึ้นต้นด้วย 0')),
+  address: z.string().trim().min(5, 'กรอกที่อยู่').max(500),
+  email: z.union([z.literal(''), z.string().trim().toLowerCase().email('รูปแบบอีเมลไม่ถูกต้อง').max(160)]),
+  photo: z.object({ mimeType: z.literal('image/jpeg'), base64: z.string().min(4).max(MAX_PROFILE_PHOTO_BASE64) }).optional(),
+  education: enumOf(EDUCATION_LEVELS),
+  organization: z.object({
+    name: z.string().trim().min(2, 'กรอกชื่อหน่วยงาน').max(160),
+    type: enumOf(ORGANIZATION_TYPES),
+    serviceArea: z.string().trim().max(200)
+  }),
+  trainings: z.array(caregiverTrainingSchema).max(10)
 });
 
 export const assignmentSetSchema = z.object({
@@ -31,6 +81,7 @@ export const patientImportSchema = z.object({
 });
 
 export type CaregiverCreateInput = z.infer<typeof caregiverCreateSchema>;
+export type CaregiverTraining = z.infer<typeof caregiverTrainingSchema>;
 export type AssignmentSetInput = z.infer<typeof assignmentSetSchema>;
 export type PatientImportRow = z.infer<typeof patientImportRowSchema>;
 export type PatientImportInput = z.infer<typeof patientImportSchema>;

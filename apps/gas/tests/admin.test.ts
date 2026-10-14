@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { installFakeGas, parseOutput, records, seed, signedEvent } from './fakeGas';
+import { fakeGas, installFakeGas, parseOutput, records, seed, signedEvent } from './fakeGas';
 import { doPost } from '../src/main';
 
 const post = (action: string, subject: string, payload: Record<string, unknown>) => parseOutput(doPost(signedEvent(action, subject, payload)));
@@ -13,29 +13,58 @@ beforeEach(() => {
   ]);
 });
 
+// What the gateway forwards: the CID already replaced by its ciphertext and lookup hash.
+const caregiver = (overrides: Record<string, unknown> = {}) => ({
+  displayName: 'CG ใหม่', username: 'cg.new', password: 'long enough password',
+  birthDate: '1980-05-01', phone: '081-234-5678', address: '12 ม.2 ต.ทดสอบ', email: 'CG@Example.org', education: 'UPPER_SECONDARY',
+  organization: { name: 'รพ.สต. ทดสอบ', type: 'HEALTH_PROMOTING_HOSPITAL', serviceArea: 'หมู่ 2' },
+  trainings: [{ course: 'หลักสูตรผู้ดูแลผู้สูงอายุ (Caregiver) 70 ชั่วโมง', provider: 'สสจ.', completedOn: '2024-06-30', hours: 70 }],
+  cidCiphertext: 'enc-cid', cidLookupHash: 'hash-cid', ...overrides
+});
+
 describe('caregiver accounts', () => {
-  it('creates a caregiver who can then sign in with the password', () => {
-    const created = post('caregiver.create', 'usr-admin', { displayName: 'CG ใหม่', username: 'CG.New', password: 'long enough password' });
+  beforeEach(() => { installFakeGas({ STAFF_PHOTO_FOLDER_ID: 'staff-photos' }); seed('Users', [{ userId: 'usr-admin', role: 'ADMIN', enabled: 'true' }, { userId: 'usr-cg', role: 'CG', enabled: 'true', displayName: 'CG หนึ่ง', usernameNormalized: 'cg.one' }, { userId: 'usr-cg2', role: 'CG', enabled: 'true', displayName: 'CG สอง', usernameNormalized: 'cg.two' }]); });
+
+  it('creates a caregiver with a profile who can then sign in with the password', () => {
+    const created = post('caregiver.create', 'usr-admin', caregiver({ username: 'CG.New', photo: { mimeType: 'image/jpeg', base64: Buffer.from('jpeg bytes').toString('base64') } }));
     expect(created).toMatchObject({ ok: true, data: { username: 'cg.new' } });
     expect(post('auth.passwordVerify', 'anonymous', { identifier: 'cg.new', password: 'long enough password' })).toMatchObject({ ok: true, data: { role: 'CG' } });
-    expect(post('caregiver.list', 'usr-admin', {})).toMatchObject({ ok: true, data: { items: expect.arrayContaining([expect.objectContaining({ username: 'cg.new', activePatients: 0 })]) } });
+    const userId = (created as { data: { userId: string } }).data.userId;
+    expect(records('CaregiverProfiles')).toEqual([expect.objectContaining({
+      userId, cidCiphertext: 'enc-cid', phone: '0812345678', email: 'cg@example.org', education: 'UPPER_SECONDARY', organizationName: 'รพ.สต. ทดสอบ', photoUrl: expect.stringContaining('lh3.googleusercontent.com')
+    })]);
+    expect(fakeGas.files).toEqual([expect.objectContaining({ folderId: 'staff-photos', name: `staff_${userId}.jpg`, sharing: 'ANYONE_WITH_LINK' })]);
+    expect(post('caregiver.list', 'usr-admin', {})).toMatchObject({ ok: true, data: { items: expect.arrayContaining([expect.objectContaining({
+      username: 'cg.new', activePatients: 0, phone: '0812345678', trainingCount: 1, latestTraining: 'หลักสูตรผู้ดูแลผู้สูงอายุ (Caregiver) 70 ชั่วโมง'
+    })]) } });
+  });
+
+  it('creates the photo folder on first use', () => {
+    installFakeGas();
+    seed('Users', [{ userId: 'usr-admin', role: 'ADMIN', enabled: 'true' }]);
+    expect(post('caregiver.create', 'usr-admin', caregiver({ photo: { mimeType: 'image/jpeg', base64: Buffer.from('jpeg').toString('base64') } }))).toMatchObject({ ok: true });
+    expect(fakeGas.properties.STAFF_PHOTO_FOLDER_ID).toBeTruthy();
   });
 
   it('lists every account without exposing credentials', () => {
-    post('caregiver.create', 'usr-admin', { displayName: 'CG ใหม่', username: 'cg.new', password: 'long enough password' });
+    post('caregiver.create', 'usr-admin', caregiver());
     const result = post('user.list', 'usr-admin', {}) as { ok: boolean; data: { items: Array<Record<string, unknown>> } };
     expect(result.data.items.map((user) => user.role)).toEqual(['ADMIN', 'CG', 'CG', 'CG']);
-    expect(result.data.items.find((user) => user.userId !== 'usr-admin' && user.username === 'cg.new')).toMatchObject({ enabled: true });
-    expect(JSON.stringify(result)).not.toMatch(/derivedHash|salt/i);
+    expect(result.data.items.find((user) => user.username === 'cg.new')).toMatchObject({ enabled: true });
+    expect(JSON.stringify(result)).not.toMatch(/derivedHash|salt|cidCiphertext/i);
     expect(post('user.list', 'usr-cg', {})).toMatchObject({ ok: false, code: 'FORBIDDEN' });
   });
 
-  it('refuses a username that is already taken', () => {
-    expect(post('caregiver.create', 'usr-admin', { displayName: 'ซ้ำ', username: 'cg.one', password: 'long enough password' })).toMatchObject({ ok: false, code: 'USERNAME_TAKEN' });
+  it('refuses a username or a CID that is already registered', () => {
+    expect(post('caregiver.create', 'usr-admin', caregiver({ username: 'cg.one' }))).toMatchObject({ ok: false, code: 'USERNAME_TAKEN' });
+    expect(post('caregiver.create', 'usr-admin', caregiver())).toMatchObject({ ok: true });
+    expect(post('caregiver.create', 'usr-admin', caregiver({ username: 'cg.other' }))).toMatchObject({ ok: false, code: 'DUPLICATE_STAFF_CID' });
   });
 
-  it('is not available to caregivers', () => {
-    expect(post('caregiver.create', 'usr-cg', { displayName: 'CG ใหม่', username: 'cg.x', password: 'long enough password' })).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  it('rejects a clear-text CID and is not available to caregivers', () => {
+    const { cidCiphertext: _ciphertext, cidLookupHash: _hash, ...plain } = caregiver();
+    expect(post('caregiver.create', 'usr-admin', { ...plain, cid: '1100000000001' })).toMatchObject({ ok: false, code: 'VALIDATION_FAILED' });
+    expect(post('caregiver.create', 'usr-cg', caregiver({ username: 'cg.x' }))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
   });
 });
 

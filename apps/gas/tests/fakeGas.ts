@@ -119,7 +119,7 @@ export function installFakeGas(properties: Record<string, string> = {}): FakeGas
       return archiveSpreadsheet(id);
     }
   };
-  globals.PropertiesService = { getScriptProperties: () => ({ getProperty: (name: string) => fakeGas.properties[name] ?? null }) };
+  globals.PropertiesService = { getScriptProperties: () => ({ getProperty: (name: string) => fakeGas.properties[name] ?? null, setProperty: (name: string, value: string) => { fakeGas.properties[name] = value; } }) };
   globals.CacheService = { getScriptCache: () => ({ get: (key: string) => fakeGas.cache.get(key) ?? null, put: (key: string, value: string) => { fakeGas.cache.set(key, value); } }) };
   globals.LockService = {
     getScriptLock: () => ({
@@ -147,6 +147,7 @@ export function installFakeGas(properties: Record<string, string> = {}): FakeGas
     Access: { ANYONE_WITH_LINK: 'ANYONE_WITH_LINK' },
     Permission: { VIEW: 'VIEW' },
     getFolderById: (folderId: string) => folder(folderId),
+    createFolder: (name: string) => folder(`folder-${name}`),
     getFileById: (id: string) => ({ moveTo: (target: { getId(): string }) => { fakeGas.archives.get(id)!.folderId = target.getId(); } })
   };
   globals.ContentService = {

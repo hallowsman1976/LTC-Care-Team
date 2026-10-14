@@ -1,4 +1,4 @@
-import { DEMO_ACTORS, patientCreateSchema, patientImportSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type ApiEnvelope } from '@smart-ltc/shared';
+import { caregiverCreateSchema, DEMO_ACTORS, patientCreateSchema, patientImportSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type ApiEnvelope } from '@smart-ltc/shared';
 
 // Backend-free API for the static GitHub Pages preview (VITE_STATIC_PREVIEW=true). It answers from
 // the same synthetic fixtures and validates with the same contracts as the Worker's local demo,
@@ -22,6 +22,13 @@ export function previewRespond(path: string, init: RequestInit | undefined, role
   if (read && method === 'GET') {
     if (read.capability && !actor.capabilities.includes(read.capability)) return reply(403, envelope(false, 'FORBIDDEN', 'ไม่มีสิทธิ์ดำเนินการนี้', null));
     return reply(200, envelope(true, 'OK', '', read.demo(actor)));
+  }
+
+  if (path === '/admin/caregivers' && method === 'POST') {
+    if (!actor.capabilities.includes('users:manage')) return reply(403, envelope(false, 'FORBIDDEN', 'ไม่มีสิทธิ์เพิ่มผู้ใช้งาน', null));
+    const input = caregiverCreateSchema.safeParse(parseBody(init));
+    if (!input.success) return reply(400, envelope(false, 'VALIDATION_FAILED', 'ข้อมูลไม่ครบหรือไม่ถูกต้อง', null));
+    return reply(200, envelope(true, 'OK', '', { demo: true, userId: `usr-${crypto.randomUUID()}`, displayName: input.data.displayName, username: input.data.username }));
   }
 
   if (path === '/admin/patients/import' && method === 'POST') {

@@ -118,6 +118,20 @@ describe('gas proxy surface', () => {
     expect(JSON.stringify(calls[0]!.payload)).not.toContain(row.cid);
   });
 
+  it('encrypts a caregiver CID before forwarding', async () => {
+    const env = makeEnv();
+    const cookie = await loginAs(env, adminActor);
+    const calls = stubGas(() => ({ userId: 'usr-new' }));
+    const caregiver = {
+      displayName: 'CG สมมติ', username: 'cg.new', password: 'long enough password', cid: '1100000000002', birthDate: '1980-05-01', phone: '0812345678',
+      address: '12 ม.2 ต.ทดสอบ', email: '', education: 'BACHELOR', organization: { name: 'รพ.สต. ทดสอบ', type: 'HOSPITAL', serviceArea: '' }, trainings: []
+    };
+    const response = await call(request('/admin/caregivers', { method: 'POST', headers: { cookie: `__Host-ltc_session=${cookie}` }, body: json(caregiver) }), env);
+    expect(response.status).toBe(200);
+    expect(calls[0]).toMatchObject({ action: 'caregiver.create', payload: { username: 'cg.new', cidCiphertext: expect.any(String), cidLookupHash: expect.any(String) } });
+    expect(JSON.stringify(calls[0]!.payload)).not.toContain(caregiver.cid);
+  });
+
   it('maps GAS failures to meaningful statuses without leaking internal codes', async () => {
     const env = makeEnv();
     const cookie = await loginAs(env, cmActor);

@@ -1,4 +1,4 @@
-import { DEMO_ACTORS, patientCreateSchema, patientImportSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type Capability, type Page } from '@smart-ltc/shared';
+import { caregiverCreateSchema, DEMO_ACTORS, patientCreateSchema, patientImportSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type Capability, type Page } from '@smart-ltc/shared';
 import type { Env } from './env';
 import { assertOperationalMode, isDemoMode, isLocalDemo, requireSecret } from './env';
 import { isSupportedBrowser } from './browser';
@@ -109,6 +109,16 @@ async function handle(request: Request, env: Env): Promise<Response> {
     const cidLookupHash = await hmacBase64(requireSecret(env, 'CID_LOOKUP_SECRET'), input.cid);
     const { cid: _discarded, ...safeInput } = input;
     return relayGas(await callGas(env, actor.userId, 'patient.create', { ...safeInput, cidCiphertext, cidLookupHash }), requestId);
+  }
+
+  if (path === '/admin/caregivers' && request.method === 'POST') {
+    if (!has(actor, 'users:manage')) return failure(403, 'FORBIDDEN', 'ไม่มีสิทธิ์เพิ่มผู้ใช้งาน', requestId);
+    const { cid, ...input } = caregiverCreateSchema.parse(await request.json());
+    if (localDemo) return ok({ demo: true, userId: `usr-${crypto.randomUUID()}`, displayName: input.displayName, username: input.username }, requestId);
+    // Like patients' CIDs, a caregiver's CID reaches GAS only encrypted, with a keyed hash for duplicate checks.
+    const cidCiphertext = await encryptCid(cid, requireSecret(env, 'CID_ENCRYPTION_KEY_BASE64'));
+    const cidLookupHash = await hmacBase64(requireSecret(env, 'CID_LOOKUP_SECRET'), cid);
+    return relayGas(await callGas(env, actor.userId, 'caregiver.create', { ...input, cidCiphertext, cidLookupHash }), requestId);
   }
 
   if (path === '/admin/patients/import' && request.method === 'POST') {

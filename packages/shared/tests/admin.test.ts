@@ -1,7 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { importTemplateCsv, normalizeBirthDate, parseCsv, readImportCsv } from '../src';
+import { caregiverCreateSchema, importTemplateCsv, normalizeBirthDate, parseCsv, readImportCsv } from '../src';
 
 const header = 'รหัสท้องถิ่น,HN,เลขประจำตัวประชาชน,ชื่อ-สกุล,วันเกิด,เพศ,ที่อยู่,หมู่บ้าน,โทรศัพท์';
+
+describe('caregiver form', () => {
+  const valid = {
+    displayName: 'CG สมมติ', username: 'CG.New', password: 'long enough password', cid: '1100000000002', birthDate: '1980-05-01', phone: '081-234 5678',
+    address: '12 ม.2 ต.ทดสอบ', email: '', education: 'BACHELOR', organization: { name: 'รพ.สต. ทดสอบ', type: 'HOSPITAL', serviceArea: '' },
+    trainings: [{ course: 'หลักสูตร 70 ชั่วโมง', provider: '', completedOn: '2024-06-30' }]
+  };
+
+  it('normalizes the username and phone number', () => {
+    expect(caregiverCreateSchema.parse(valid)).toMatchObject({ username: 'cg.new', phone: '0812345678' });
+  });
+
+  it('rejects bad CIDs, phones, future dates and unknown choices', () => {
+    for (const change of [{ cid: '123' }, { phone: '812345678' }, { birthDate: '2999-01-01' }, { education: 'NONE' }, { email: 'not-an-email' }]) {
+      expect(caregiverCreateSchema.safeParse({ ...valid, ...change }).success).toBe(false);
+    }
+  });
+});
 
 describe('import CSV', () => {
   it('parses quoted fields with commas, quotes and line breaks', () => {

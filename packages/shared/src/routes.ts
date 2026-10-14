@@ -3,7 +3,7 @@ import {
   adlCreateSchema, carePlanActivateSchema, carePlanCreateSchema, classificationConfirmSchema,
   encounterReviewSchema, fileUploadSchema, visitSubmitSchema
 } from './actions';
-import { assignmentSetSchema, caregiverCreateSchema } from './admin';
+import { assignmentSetSchema } from './admin';
 import { capabilitiesFor } from './rbac';
 import { visitContextSchema, visitImageUploadSchema, visitRecordSubmitSchema } from './visitRecord';
 import type { Actor, Capability, Page } from './types';
@@ -21,8 +21,8 @@ export const DEMO_ACTORS: Record<string, Actor> = {
 };
 
 const demoCaregivers = [
-  { userId: 'usr-demo-cg', displayName: 'CG ตัวอย่าง', username: 'cg.demo', enabled: true, activePatients: 1 },
-  { userId: 'usr-demo-cg2', displayName: 'CG ตัวอย่าง สอง', username: 'cg.demo2', enabled: true, activePatients: 0 }
+  { userId: 'usr-demo-cg', displayName: 'CG ตัวอย่าง', username: 'cg.demo', enabled: true, activePatients: 1, phone: '0800000001', organizationName: 'รพ.สต. ตัวอย่าง', education: 'UPPER_SECONDARY', photoUrl: '', latestTraining: 'หลักสูตรผู้ดูแลผู้สูงอายุ (Caregiver) 70 ชั่วโมง', trainingCount: 1 },
+  { userId: 'usr-demo-cg2', displayName: 'CG ตัวอย่าง สอง', username: 'cg.demo2', enabled: true, activePatients: 0, phone: '', organizationName: '', education: '', photoUrl: '', latestTraining: '', trainingCount: 0 }
 ];
 
 const demoPatients = [
@@ -124,10 +124,6 @@ export const WRITE_ROUTES: Record<string, WriteRoute> = {
   '/visit-images': {
     action: 'visitImage.upload', capability: 'patients:read', schema: visitImageUploadSchema,
     demo: () => ({ imageId: uuid(), url: '' })
-  },
-  '/admin/caregivers': {
-    action: 'caregiver.create', capability: 'users:manage', schema: caregiverCreateSchema,
-    demo: (input) => ({ userId: `usr-${uuid()}`, displayName: input.displayName, username: input.username })
   },
   '/admin/assignments': {
     action: 'assignment.set', capability: 'assignments:manage', schema: assignmentSetSchema,

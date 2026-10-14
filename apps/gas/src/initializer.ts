@@ -33,11 +33,24 @@ export const SHEETS: Record<string, string[]> = {
   GatewayNonces: ['nonce', 'expiresAtEpoch', 'receivedAt'],
   Holidays: ['holidayId', 'localDate', 'name', 'active'],
   VisitImages: VISIT_IMAGE_COLUMNS,
-  Visit_Records: VISIT_RECORD_COLUMNS
+  Visit_Records: VISIT_RECORD_COLUMNS,
+  CaregiverProfiles: ['userId', 'cidCiphertext', 'cidLookupHash', 'birthDate', 'phone', 'address', 'email', 'photoFileId', 'photoUrl', 'education', 'organizationName', 'organizationType', 'serviceArea', 'trainingsJson', 'createdAt', 'updatedAt', 'createdBy', 'recordVersion']
 };
 
 /** Sheets that store typed-in text such as phone numbers and times: keep them as text (leading 0s). */
-const TEXT_SHEETS = ['VisitImages', 'Visit_Records'];
+const TEXT_SHEETS = ['VisitImages', 'Visit_Records', 'CaregiverProfiles'];
+
+/** Adds a sheet introduced after the workbook was initialized, so a deploy needs no manual step. */
+export function ensureSheet(name: string): void {
+  const headers = SHEETS[name];
+  if (!headers) throw new Error(`UNKNOWN_SHEET:${name}`);
+  const spreadsheet = getSpreadsheet();
+  if (spreadsheet.getSheetByName(name)) return;
+  const sheet = spreadsheet.insertSheet(name);
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.setFrozenRows(1);
+  if (TEXT_SHEETS.includes(name)) sheet.getRange(1, 1, sheet.getMaxRows(), headers.length).setNumberFormat('@');
+}
 
 export function initializeDemoWorkbook(requireDemo = true): { created: string[] } {
   if (requireDemo) requireDemoMode();

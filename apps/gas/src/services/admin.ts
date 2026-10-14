@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { assignmentSetSchema, caregiverCreateSchema, MAX_IMPORT_ROWS_PER_REQUEST, patientImportRowSchema, patientImportSchema, type Actor, type Page } from '@smart-ltc/shared';
 import { getAppMode } from '../config';
+import { ensureSheet } from '../initializer';
 import { appendUnique, bulkAppend, getById, getSheet, headersOf, listAll, updateWhere, withScriptLock, type RowRecord } from '../repositories/sheets';
 import { requireCapability } from '../security/rbac';
 import { audit } from '../security/audit';
@@ -9,15 +10,40 @@ import { storePasswordCredential } from '../admin/credentials';
 const bangkokToday = () => Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
 const isActiveCgAssignment = (row: RowRecord) => String(row.status) === 'ACTIVE' && String(row.role) === 'CG';
 
+function trainingsOf(profile: RowRecord | undefined): Array<{ course: string; completedOn: string }> {
+  try { return JSON.parse(String(profile?.trainingsJson || '[]')) as Array<{ course: string; completedOn: string }>; } catch { return []; }
+}
+
+/** Caregivers with a summary of their profile. The CID stays in the sheet, encrypted. */
 export function listCaregivers(actor: Actor): Page<RowRecord> {
   requireCapability(actor, 'users:manage');
+  ensureSheet('CaregiverProfiles');
   const assignments = listAll('StaffAssignments', isActiveCgAssignment);
-  const items = listAll('Users', (row) => String(row.role) === 'CG').map((row) => ({
-    userId: row.userId, displayName: row.displayName, username: row.usernameNormalized,
-    enabled: String(row.enabled).toLowerCase() === 'true',
-    activePatients: assignments.filter((assignment) => String(assignment.staffId) === String(row.userId)).length
-  }));
+  const profiles = new Map(listAll('CaregiverProfiles', () => true).map((row) => [String(row.userId), row]));
+  const items = listAll('Users', (row) => String(row.role) === 'CG').map((row) => {
+    const profile = profiles.get(String(row.userId));
+    const trainings = trainingsOf(profile).sort((left, right) => String(right.completedOn).localeCompare(String(left.completedOn)));
+    return {
+      userId: row.userId, displayName: row.displayName, username: row.usernameNormalized,
+      enabled: String(row.enabled).toLowerCase() === 'true',
+      activePatients: assignments.filter((assignment) => String(assignment.staffId) === String(row.userId)).length,
+      phone: profile?.phone ?? '', organizationName: profile?.organizationName ?? '', education: profile?.education ?? '',
+      photoUrl: profile?.photoUrl ?? '', latestTraining: trainings[0]?.course ?? '', trainingCount: trainings.length
+    };
+  });
   return { items, hasMore: false };
+}
+
+const PHOTO_FOLDER_PROPERTY = 'STAFF_PHOTO_FOLDER_ID';
+
+/** Staff photos get their own folder, created on first use, apart from patients' visit photos. */
+function staffPhotoFolder(): GoogleAppsScript.Drive.Folder {
+  const properties = PropertiesService.getScriptProperties();
+  const id = properties.getProperty(PHOTO_FOLDER_PROPERTY);
+  if (id) return DriveApp.getFolderById(id);
+  const folder = DriveApp.createFolder('Smart LTC Care – รูปประจำตัวผู้ดูแล');
+  properties.setProperty(PHOTO_FOLDER_PROPERTY, folder.getId());
+  return folder;
 }
 
 /** Every account and its role, for the ข้อมูลผู้ใช้งาน page. Never returns credentials. */
@@ -39,15 +65,35 @@ export function listUsers(actor: Actor): Page<RowRecord> {
 export function createCaregiver(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
   requireCapability(actor, 'users:manage');
   if (getAppMode() !== 'DEMO') throw new Error('PASSWORD_AUTH_DISABLED');
-  const input = caregiverCreateSchema.parse(payload);
+  const input = forwardedCaregiverSchema.parse(payload);
+  ensureSheet('CaregiverProfiles');
   const userId = `usr-${Utilities.getUuid()}`;
   const now = new Date().toISOString();
   withScriptLock(() => {
     const taken = listAll('Users', (row) => String(row.usernameNormalized).toLowerCase() === input.username).length > 0
       || listAll('AuthCredentials', (row) => String(row.status) === 'ACTIVE' && String(row.identifierNormalized).toLowerCase() === input.username).length > 0;
     if (taken) throw new Error('USERNAME_TAKEN');
-    appendUnique('Users', 'userId', { userId, identitySubject: '', email: '', usernameNormalized: input.username, displayName: input.displayName, role: 'CG', enabled: 'true', createdAt: now, updatedAt: now });
-    appendUnique('StaffProfiles', 'staffId', { staffId: `stf-${Utilities.getUuid()}`, userId, staffType: 'CG', credentialType: '', credentialVerifiedAt: '', qualificationExpiry: '' });
+    if (listAll('CaregiverProfiles', (row) => String(row.cidLookupHash) === input.cidLookupHash).length) throw new Error('DUPLICATE_STAFF_CID');
+    let photoFileId = '';
+    let photoUrl = '';
+    if (input.photo) {
+      const bytes = Utilities.base64Decode(input.photo.base64);
+      if (bytes.length < 1 || bytes.length > 512 * 1024) throw new Error('FILE_SIZE_NOT_ALLOWED');
+      // The file name carries the user id only, never the person's name.
+      const file = staffPhotoFolder().createFile(Utilities.newBlob(bytes, 'image/jpeg', `staff_${userId}.jpg`));
+      // lh3 links only open for files shared by link: synthetic DEMO data only, PILOT photos stay private.
+      if (getAppMode() === 'DEMO') file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      photoFileId = file.getId();
+      photoUrl = `https://lh3.googleusercontent.com/d/${photoFileId}`;
+    }
+    appendUnique('Users', 'userId', { userId, identitySubject: '', email: input.email, usernameNormalized: input.username, displayName: input.displayName, role: 'CG', enabled: 'true', createdAt: now, updatedAt: now });
+    appendUnique('StaffProfiles', 'staffId', { staffId: `stf-${Utilities.getUuid()}`, userId, staffType: 'CG', credentialType: input.trainings[0]?.course ?? '', credentialVerifiedAt: '', qualificationExpiry: '' });
+    appendUnique('CaregiverProfiles', 'userId', {
+      userId, cidCiphertext: input.cidCiphertext, cidLookupHash: input.cidLookupHash, birthDate: input.birthDate, phone: input.phone,
+      address: input.address, email: input.email, photoFileId, photoUrl, education: input.education,
+      organizationName: input.organization.name, organizationType: input.organization.type, serviceArea: input.organization.serviceArea,
+      trainingsJson: JSON.stringify(input.trainings), createdAt: now, updatedAt: now, createdBy: actor.userId, recordVersion: 1
+    });
     storePasswordCredential(userId, input.username, input.password);
   });
   audit(actor.userId, 'caregiver.create', 'User', userId, 'SUCCESS');
@@ -113,6 +159,11 @@ const forwardedRowSchema = patientImportRowSchema.omit({ cid: true }).extend({
   cidCiphertext: z.string().min(1).max(500),
   cidLookupHash: z.string().min(1).max(200)
 });
+const forwardedCaregiverSchema = caregiverCreateSchema.omit({ cid: true }).extend({
+  cidCiphertext: z.string().min(1).max(500),
+  cidLookupHash: z.string().min(1).max(200)
+});
+
 const forwardedImportSchema = patientImportSchema.omit({ rows: true }).extend({
   rows: z.array(forwardedRowSchema).min(1).max(MAX_IMPORT_ROWS_PER_REQUEST)
 });
