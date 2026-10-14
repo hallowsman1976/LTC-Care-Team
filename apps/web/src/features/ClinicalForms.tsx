@@ -275,25 +275,95 @@ function ActivatePlan({ plan }: { plan: DraftPlan }) {
   </div>;
 }
 
+export const SERVICE_TYPES: Array<{ label: string; detail: string; example: string }> = [
+  { label: 'ดูแลกิจวัตรประจำวัน', detail: 'ช่วยอาบน้ำ เช็ดตัว แต่งตัว ป้อนอาหาร ขับถ่าย', example: 'เช็ดตัว เปลี่ยนเสื้อผ้า ช่วยป้อนอาหารมื้อเช้า ดูแลความสะอาดหลังขับถ่าย' },
+  { label: 'กายภาพบำบัดและฝึกการเคลื่อนไหว', detail: 'ฝึกลุกนั่ง ยืน เดิน และบริหารข้อเพื่อป้องกันข้อติด', example: 'บริหารข้อแขนขาทั้งสองข้าง ข้างละ 10 ครั้ง ฝึกลุกนั่งและยืนโดยมีผู้ช่วยพยุง' },
+  { label: 'ป้องกันแผลกดทับ', detail: 'พลิกตะแคงตัว จัดท่า และตรวจดูผิวหนังบริเวณปุ่มกระดูก', example: 'สอนญาติพลิกตะแคงตัวทุก 2 ชั่วโมง ตรวจผิวหนังบริเวณก้นกบ สะโพก และส้นเท้า' },
+  { label: 'ติดตามสัญญาณชีพและอาการ', detail: 'วัดอุณหภูมิ ชีพจร และสังเกตอาการเปลี่ยนแปลงเพื่อแจ้ง CM', example: 'วัดอุณหภูมิและชีพจร สอบถามการกิน การนอน และอาการผิดปกติ แจ้ง CM หากพบความผิดปกติ' },
+  { label: 'ดูแลการใช้ยา', detail: 'ตรวจว่าได้รับยาตามแพทย์สั่ง ไม่ปรับยาเอง', example: 'ตรวจกล่องยาว่ารับประทานครบตามแพทย์สั่ง บันทึกยาที่ขาดหรือเหลือผิดปกติ' },
+  { label: 'กระตุ้นความจำและสุขภาพจิต', detail: 'พูดคุย ทำกิจกรรมกระตุ้นการรับรู้ และสังเกตอารมณ์', example: 'พูดคุยเรื่องวันเวลาและครอบครัว ทำกิจกรรมเบา ๆ 15 นาที สังเกตอารมณ์และการนอน' },
+  { label: 'ดูแลแบบประคับประคอง', detail: 'บรรเทาความไม่สุขสบายและสนับสนุนครอบครัวตามแผนของทีม', example: 'จัดท่าให้สุขสบาย ดูแลช่องปากและผิวหนัง พูดคุยให้กำลังใจผู้ดูแลในครอบครัว' }
+];
+const OTHER_SERVICE = 'อื่น ๆ (ระบุเอง)';
+
+const PLAN_LENGTHS: Array<[string, number]> = [['3 เดือน', 3], ['6 เดือน', 6], ['1 ปี', 12]];
+const TIME_WINDOWS: Array<[string, string, string]> = [['ช่วงเช้า', '09:00', '12:00'], ['ช่วงบ่าย', '13:00', '16:00'], ['ทั้งวันทำการ', '08:30', '16:30']];
+
+/** The day before the same date `months` later, so "3 months from 1 Jan" ends on 31 Mar. */
+export function planEndDate(from: string, months: number): string {
+  const [year, month, day] = from.split('-').map(Number);
+  const end = new Date(Date.UTC(year!, month! - 1 + months, day!));
+  end.setUTCDate(end.getUTCDate() - 1);
+  return end.toISOString().slice(0, 10);
+}
+
+const hintClass = 'block text-xs font-normal text-slate-500';
+const chipClass = 'min-h-10 rounded-lg border border-slate-300 px-3 text-sm hover:bg-sky-50';
+
 export function CarePlanForm() {
   const [searchParams] = useSearchParams();
+  const presetPatient = searchParams.get('patientId') ?? '';
   const [outcome, setOutcome] = useState<Outcome>(null);
   const [draft, setDraft] = useState<DraftPlan | null>(null);
-  const form = useForm<CarePlanValues>({ resolver: zodResolver(carePlanSchema), defaultValues: { patientId: searchParams.get('patientId') ?? '', rulesetId: isDemoMode ? DEMO_RULESET_ID : '', effectiveFrom: '', effectiveTo: '', goalsSummary: '', serviceType: '', instructions: '', unit: 'WEEK', weekdays: [], windowStart: '09:00', windowEnd: '12:00' } });
-  const unit = form.watch('unit');
+  const [serviceChoice, setServiceChoice] = useState('');
+  const today = todayInBangkok();
+  const form = useForm<CarePlanValues>({ resolver: zodResolver(carePlanSchema), defaultValues: { patientId: presetPatient, rulesetId: isDemoMode ? DEMO_RULESET_ID : '', effectiveFrom: today, effectiveTo: planEndDate(today, 3), goalsSummary: '', serviceType: '', instructions: '', unit: 'WEEK', weekdays: [], windowStart: '09:00', windowEnd: '12:00' } });
+  const { unit, patientId, effectiveFrom, windowStart, windowEnd } = form.watch();
   const errors = form.formState.errors;
-  return <FormPage title="สร้าง Care Plan" description="แผนเริ่มเป็น DRAFT และยังไม่สร้างตารางจนผ่านเงื่อนไข activation">
-    <form onSubmit={form.handleSubmit((values) => attempt(setOutcome, async () => setDraft(await post<DraftPlan>('/care-plans', toCarePlanRequest(values))), 'สร้างร่างแผนแล้ว'))} className="grid gap-4 md:grid-cols-2">
-      {([['patientId', 'รหัสผู้รับบริการ'], ['rulesetId', 'ชุดกฎบริการที่อนุมัติแล้ว'], ['effectiveFrom', 'เริ่มวันที่'], ['effectiveTo', 'ถึงวันที่'], ['serviceType', 'ประเภทบริการ']] as const).map(([name, label]) => <label key={name} className={labelClass}>{label}<input type={name.startsWith('effective') ? 'date' : 'text'} {...form.register(name)} className={fieldClass}/><span className="text-xs text-danger">{errors[name]?.message}</span></label>)}
-      <label className={labelClass}>รอบการเยี่ยม<select {...form.register('unit')} className={fieldClass}><option value="WEEK">รายสัปดาห์</option><option value="MONTH">รายเดือน</option></select></label>
-      {unit === 'WEEK'
-        ? <fieldset className="md:col-span-2"><legend className={labelClass}>วันที่เยี่ยมในแต่ละสัปดาห์</legend><div className="mt-2 flex flex-wrap gap-3">{weekdayLabels.map((label, index) => <label key={label} className="flex min-h-12 items-center gap-2"><input type="checkbox" value={index + 1} {...form.register('weekdays')} className="h-5 w-5"/>{label}</label>)}</div><span className="text-xs text-danger">{errors.weekdays?.message}</span></fieldset>
-        : <label className={labelClass}>วันที่ของเดือน (1–28)<input type="number" {...form.register('dayOfMonth')} className={fieldClass}/><span className="text-xs text-danger">{errors.dayOfMonth?.message}</span></label>}
-      <label className={labelClass}>เวลาเริ่ม<input type="time" {...form.register('windowStart')} className={fieldClass}/></label>
-      <label className={labelClass}>เวลาสิ้นสุด<input type="time" {...form.register('windowEnd')} className={fieldClass}/><span className="text-xs text-danger">{errors.windowEnd?.message}</span></label>
-      <label className={`${labelClass} md:col-span-2`}>เป้าหมาย<textarea {...form.register('goalsSummary')} className={fieldClass}/><span className="text-xs text-danger">{errors.goalsSummary?.message}</span></label>
-      <label className={`${labelClass} md:col-span-2`}>คำแนะนำกิจกรรม<textarea {...form.register('instructions')} className={fieldClass}/><span className="text-xs text-danger">{errors.instructions?.message}</span></label>
-      <div className="md:col-span-2"><Button type="submit" disabled={form.formState.isSubmitting || draft !== null}>บันทึกร่าง</Button><OutcomeMessage outcome={outcome}/></div>
+  const service = SERVICE_TYPES.find((item) => item.label === serviceChoice);
+  const chooseService = (label: string) => {
+    setServiceChoice(label);
+    form.setValue('serviceType', label === OTHER_SERVICE ? '' : label, { shouldValidate: form.formState.isSubmitted });
+  };
+  return <FormPage title="สร้าง Care Plan" description="บันทึกเป็นร่าง (DRAFT) ก่อน เมื่ออนุมัติแล้วระบบจึงสร้างตารางเยี่ยมให้ผู้ดูแลตามรอบที่กำหนด">
+    {patientId && <PatientBanner patientId={patientId}/>}
+    <form onSubmit={form.handleSubmit((values) => attempt(setOutcome, async () => setDraft(await post<DraftPlan>('/care-plans', toCarePlanRequest(values))), 'สร้างร่างแผนแล้ว'))} className="space-y-4">
+      {!presetPatient && <label className={labelClass}>รหัสผู้รับบริการ<span className={hintClass}>เปิดจากการ์ดผู้รับบริการเพื่อกรอกให้อัตโนมัติ</span><input {...form.register('patientId')} className={fieldClass}/><span className="text-xs text-danger">{errors.patientId?.message}</span></label>}
+
+      <fieldset className="rounded-xl border border-slate-200 p-3">
+        <legend className="px-1 font-bold">1. ช่วงเวลาของแผน</legend>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className={labelClass}>เริ่มวันที่<input type="date" {...form.register('effectiveFrom')} className={fieldClass}/><span className="text-xs text-danger">{errors.effectiveFrom?.message}</span></label>
+          <label className={labelClass}>ถึงวันที่<input type="date" {...form.register('effectiveTo')} className={fieldClass}/><span className="text-xs text-danger">{errors.effectiveTo?.message}</span></label>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2"><span className="text-sm text-slate-600">ระยะเวลา:</span>{PLAN_LENGTHS.map(([label, months]) => <button key={label} type="button" disabled={!effectiveFrom} onClick={() => form.setValue('effectiveTo', planEndDate(effectiveFrom, months), { shouldValidate: true })} className={chipClass}>{label}</button>)}</div>
+        <label className={`${labelClass} mt-3`}>ชุดกฎบริการที่อนุมัติแล้ว<span className={hintClass}>กำหนดความถี่บริการที่เบิกได้ตามกลุ่ม LTC{isDemoMode ? ` · ระบบ DEMO ใช้ ${DEMO_RULESET_ID}` : ''}</span><input {...form.register('rulesetId')} className={fieldClass}/><span className="text-xs text-danger">{errors.rulesetId?.message}</span></label>
+      </fieldset>
+
+      <fieldset className="rounded-xl border border-slate-200 p-3">
+        <legend className="px-1 font-bold">2. ประเภทบริการ</legend>
+        <div className="mt-1 grid gap-2 md:grid-cols-2">{[...SERVICE_TYPES, { label: OTHER_SERVICE, detail: 'บริการที่ไม่มีในรายการ ระบุชื่อบริการเอง', example: '' }].map((item) => <label key={item.label} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${serviceChoice === item.label ? 'border-primary bg-sky-50' : 'border-slate-200'}`}>
+          <input type="radio" name="serviceChoice" checked={serviceChoice === item.label} onChange={() => chooseService(item.label)} className="mt-1 h-5 w-5"/>
+          <span><span className="font-semibold">{item.label}</span><span className="block text-sm text-slate-600">{item.detail}</span></span>
+        </label>)}</div>
+        {serviceChoice === OTHER_SERVICE && <label className={`${labelClass} mt-3`}>ชื่อบริการ<input {...form.register('serviceType')} className={fieldClass}/></label>}
+        <span className="text-xs text-danger">{errors.serviceType?.message}</span>
+      </fieldset>
+
+      <fieldset className="rounded-xl border border-slate-200 p-3">
+        <legend className="px-1 font-bold">3. รอบการเยี่ยม</legend>
+        <div className="grid gap-2 md:grid-cols-2">{([['WEEK', 'รายสัปดาห์', 'เยี่ยมตามวันที่เลือกในทุกสัปดาห์'], ['MONTH', 'รายเดือน', 'เยี่ยมเดือนละ 1 ครั้งตามวันที่กำหนด']] as const).map(([value, label, detail]) => <label key={value} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${unit === value ? 'border-primary bg-sky-50' : 'border-slate-200'}`}>
+          <input type="radio" value={value} {...form.register('unit')} className="mt-1 h-5 w-5"/><span><span className="font-semibold">{label}</span><span className="block text-sm text-slate-600">{detail}</span></span>
+        </label>)}</div>
+        {unit === 'WEEK'
+          ? <div className="mt-3"><p className={labelClass}>วันที่เยี่ยมในแต่ละสัปดาห์<span className={hintClass}>เลือกได้หลายวัน จำนวนวันที่เลือกคือจำนวนครั้งต่อสัปดาห์</span></p><div className="mt-2 flex flex-wrap gap-3">{weekdayLabels.map((label, index) => <label key={label} className="flex min-h-12 items-center gap-2"><input type="checkbox" value={index + 1} {...form.register('weekdays')} className="h-5 w-5"/>{label}</label>)}</div><span className="text-xs text-danger">{errors.weekdays?.message}</span></div>
+          : <label className={`${labelClass} mt-3`}>วันที่ของเดือน (1–28)<span className={hintClass}>จำกัดไม่เกินวันที่ 28 เพื่อให้มีทุกเดือน</span><input type="number" min={1} max={28} {...form.register('dayOfMonth')} className={fieldClass}/><span className="text-xs text-danger">{errors.dayOfMonth?.message}</span></label>}
+        <p className={`${labelClass} mt-3`}>ช่วงเวลาที่เยี่ยม<span className={hintClass}>ระบบไม่เลื่อนนัดในวันหยุดให้อัตโนมัติ</span></p>
+        <div className="mt-2 flex flex-wrap gap-2">{TIME_WINDOWS.map(([label, start, end]) => <button key={label} type="button" onClick={() => { form.setValue('windowStart', start); form.setValue('windowEnd', end, { shouldValidate: true }); }} className={`${chipClass} ${windowStart === start && windowEnd === end ? 'border-primary bg-sky-50 font-semibold' : ''}`}>{label} {start}–{end}</button>)}</div>
+        <div className="mt-2 grid gap-3 md:grid-cols-2">
+          <label className={labelClass}>เวลาเริ่ม<input type="time" {...form.register('windowStart')} className={fieldClass}/></label>
+          <label className={labelClass}>เวลาสิ้นสุด<input type="time" {...form.register('windowEnd')} className={fieldClass}/><span className="text-xs text-danger">{errors.windowEnd?.message}</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset className="rounded-xl border border-slate-200 p-3">
+        <legend className="px-1 font-bold">4. เป้าหมายและกิจกรรม</legend>
+        <label className={labelClass}>เป้าหมายของแผน<span className={hintClass}>สิ่งที่ต้องการให้เกิดขึ้นและวัดผลได้ เช่น "ไม่เกิดแผลกดทับใหม่ภายใน 3 เดือน" หรือ "ลุกนั่งเองได้โดยมีคนช่วยพยุงเล็กน้อย"</span><textarea {...form.register('goalsSummary')} className={fieldClass}/><span className="text-xs text-danger">{errors.goalsSummary?.message}</span></label>
+        <label className={`${labelClass} mt-3`}>คำแนะนำกิจกรรมสำหรับผู้ดูแล<span className={hintClass}>สิ่งที่ CG ต้องทำในแต่ละครั้ง เขียนให้ทำตามได้ทันที</span><textarea {...form.register('instructions')} placeholder={service ? `ตัวอย่าง: ${service.example}` : ''} className={fieldClass}/><span className="text-xs text-danger">{errors.instructions?.message}</span></label>
+        {service && <button type="button" onClick={() => form.setValue('instructions', service.example, { shouldValidate: true })} className={`${chipClass} mt-2`}>ใช้ข้อความตัวอย่าง</button>}
+      </fieldset>
+
+      <div><Button type="submit" disabled={form.formState.isSubmitting || draft !== null}>บันทึกร่าง</Button><OutcomeMessage outcome={outcome}/></div>
       {draft && <ActivatePlan plan={draft}/>}
     </form>
   </FormPage>;

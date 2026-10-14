@@ -55,3 +55,14 @@ describe('LTC classification form', () => {
     expect(LTC_GROUPS.map((group) => group.value)).toEqual([1, 2, 3, 4]);
   });
 });
+
+describe('care plan length shortcuts', () => {
+  it('end the day before the same date months later', async () => {
+    const { planEndDate, SERVICE_TYPES } = await import('./ClinicalForms');
+    expect(planEndDate('2026-01-01', 3)).toBe('2026-03-31');
+    expect(planEndDate('2026-10-14', 12)).toBe('2027-10-13');
+    expect(planEndDate('2026-11-15', 3)).toBe('2027-02-14');
+    // serviceType must satisfy the server's 2–80 character limit.
+    for (const { label } of SERVICE_TYPES) expect(label.length).toBeLessThanOrEqual(80);
+  });
+});
