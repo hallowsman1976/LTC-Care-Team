@@ -141,6 +141,21 @@ describe('patient import', () => {
     expect(records('PatientConsents')).toHaveLength(1);
   });
 
+  it('stores the new register columns and assigns the CG named by sign-in name', () => {
+    seed('AuthCredentials', [{ credentialId: 'cred-cg', userId: 'usr-cg', identifierNormalized: 'cg.one', status: 'ACTIVE' }]);
+    const full = { ...row(2, 'HN-1', '1'), villageNo: '2', villageName: 'หนองบัว', subdistrict: 'ตัวอย่าง', province: 'ขอนแก่น', latitude: 16.4321, longitude: 102.8236,
+      mainCaregiverPhone: '0898765432', relationship: 'CHILD', rightType: 'UC', adlScore: 8, dependencyStatus: 'HOMEBOUND', taiGroup: 'C3', ppsScore: 50,
+      registerDate: '2026-10-01', caregiverUsername: 'cg.one' };
+    const result = post('patient.import', 'usr-admin', { rows: [full, { ...row(3, 'HN-2', '2'), caregiverUsername: 'cg.nobody' }] });
+    expect(result).toMatchObject({ ok: true, data: { created: 2, assigned: 1, warnings: [{ line: 3, reason: 'CAREGIVER_NOT_FOUND', detail: 'cg.nobody' }] } });
+    const saved = records('Patients').find((patient) => patient.hn === 'HN-1')!;
+    expect(saved).toMatchObject({ village: 'หมู่ 2 บ้านหนองบัว', province: 'ขอนแก่น', latitude: 16.4321, rightType: 'UC', taiGroup: 'C3', registerDate: '2026-10-01', caregiverId: 'usr-cg' });
+    expect(records('Patients').find((patient) => patient.hn === 'HN-2')).toMatchObject({ caregiverId: '' });
+    const episode = records('CareEpisodes').find((item) => item.patientId === saved.patientId)!;
+    expect(records('StaffAssignments')).toEqual([expect.objectContaining({ episodeId: episode.episodeId, staffId: 'usr-cg', status: 'ACTIVE' })]);
+    expect(post('patient.list', 'usr-cg', {})).toMatchObject({ ok: true, data: { items: [expect.objectContaining({ patientId: saved.patientId })] } });
+  });
+
   it('rejects rows that still carry a clear-text CID', () => {
     const { cidCiphertext: _ciphertext, cidLookupHash: _hash, ...plain } = row(2, 'HN-1', '1');
     expect(post('patient.import', 'usr-admin', { rows: [{ ...plain, cid: '1100000000001' }] })).toMatchObject({ ok: false, code: 'VALIDATION_FAILED' });

@@ -3,7 +3,7 @@ import { CheckCircle2, Download, FileUp, Search, UserCheck } from 'lucide-react'
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  importTemplateCsv, IMPORT_COLUMNS, MAX_IMPORT_ROWS_PER_REQUEST, readImportCsv,
+  importTemplateCsv, IMPORT_COLUMNS, MAX_IMPORT_ROWS_PER_REQUEST, readImportCsv, villageLabel,
   type Actor, type ImportPreview, type Page as ListPage, type PatientImportRow, type Role
 } from '@smart-ltc/shared';
 import { api, isDemoMode, post } from '../lib/api';
@@ -153,7 +153,7 @@ const SKIP_REASONS: Record<string, string> = {
   POTENTIAL_DUPLICATE: 'ชื่อและวันเกิดตรงกับผู้รับบริการเดิม ให้ CM ตรวจสอบแล้วเพิ่มทีละราย'
 };
 
-interface ImportResult { created: number; skipped: Array<{ line: number; hn: string; reason: string }> }
+interface ImportResult { created: number; assigned: number; skipped: Array<{ line: number; hn: string; reason: string }>; warnings: Array<{ line: number; hn: string; reason: string; detail: string }> }
 
 /** Excel's “CSV UTF-8” is UTF-8; its plain “CSV” on Thai Windows is Windows-874 (TIS-620). */
 async function readTextFile(file: File): Promise<string> {
@@ -192,7 +192,7 @@ export function PatientImport() {
     if (!validRows.length) return;
     if (!isDemoMode && !legalBasis) { setError('กรุณาเลือกฐานการประมวลผล'); return; }
     setError(''); setResult(null);
-    const total: ImportResult = { created: 0, skipped: [] };
+    const total: ImportResult = { created: 0, assigned: 0, skipped: [], warnings: [] };
     setProgress({ sent: 0, total: validRows.length });
     try {
       for (let start = 0; start < validRows.length; start += MAX_IMPORT_ROWS_PER_REQUEST) {
@@ -200,7 +200,7 @@ export function PatientImport() {
         const answer = await post<ImportResult>('/admin/patients/import', {
           rows: chunk, legalBasis: legalBasis || undefined, privacyNoticeVersion: import.meta.env.VITE_PRIVACY_NOTICE_VERSION || undefined
         });
-        total.created += answer.created; total.skipped.push(...answer.skipped);
+        total.created += answer.created; total.assigned += answer.assigned ?? 0; total.skipped.push(...answer.skipped); total.warnings.push(...(answer.warnings ?? []));
         setProgress({ sent: start + chunk.length, total: validRows.length });
       }
     } catch (failure) {
@@ -218,13 +218,15 @@ export function PatientImport() {
       <Button type="button" onClick={downloadTemplate} className="mt-3"><Download aria-hidden className="mr-2" size={18}/>ดาวน์โหลดแม่แบบ (CSV)</Button>
       <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-700">
         <li>หนึ่งแถวต่อหนึ่งราย คงหัวตารางแถวแรกไว้ แถวที่ขึ้นต้นด้วย <code>#</code> (เช่นแถวตัวอย่าง) ระบบจะข้าม</li>
-        <li>ใน Excel ให้ตั้งคอลัมน์ <b>เลขประจำตัวประชาชน</b> และ <b>โทรศัพท์</b> เป็น “ข้อความ” ก่อนวางข้อมูล เพื่อไม่ให้เลข 0 นำหน้าหายหรือกลายเป็น 1.1E+12</li>
-        <li>วันเกิดใช้ วว/ดด/ปปปป ได้ทั้ง พ.ศ. และ ค.ศ. (เช่น 15/03/2485) · เพศ: ชาย หญิง หรือเว้นว่าง</li>
+        <li>ใน Excel ให้ตั้งคอลัมน์ <b>เลขประจำตัวประชาชน</b> เป็น “ข้อความ” ก่อนวางข้อมูล เพื่อไม่ให้กลายเป็น 1.1E+12 (เบอร์โทรที่เลข 0 หาย ระบบเติมให้)</li>
+        <li>วันที่ใช้ วว/ดด/ปปปป ได้ทั้ง พ.ศ. และ ค.ศ. (เช่น 15/03/2485) · ช่องตัวเลือกพิมพ์คำไทยได้ เช่น บัตรทอง, ติดบ้าน, บุตร · ช่องที่ไม่บังคับเว้นว่างได้</li>
+        <li>ใส่ <b>ชื่อผู้ใช้ CG</b> (เช่น cg.somjai) เพื่อมอบหมายผู้ดูแลทันที ถ้าไม่พบชื่อ ระบบยังนำเข้าแต่ไม่มอบหมาย และแจ้งให้ทราบ</li>
+        <li>ไฟล์จากแม่แบบเดิม (9 คอลัมน์) ยังนำเข้าได้ตามเดิม</li>
         <li>บันทึกเป็น “CSV UTF-8 (Comma delimited)” หรือดาวน์โหลดเป็น .csv จาก Google Sheets</li>
       </ul>
       <details className="mt-3 text-sm"><summary className="cursor-pointer font-semibold text-primary">คอลัมน์ในแม่แบบ</summary>
-        <table className="mt-2 w-full text-left"><thead><tr className="border-b"><th className="py-1">คอลัมน์</th><th>จำเป็น</th><th>ตัวอย่าง</th></tr></thead>
-          <tbody>{IMPORT_COLUMNS.map((column) => <tr key={column.key} className="border-b border-slate-100"><td className="py-1">{column.header}</td><td>{column.required ? 'จำเป็น' : '–'}</td><td className="text-slate-600">{column.example}</td></tr>)}</tbody></table>
+        <div className="mt-2 overflow-x-auto"><table className="w-full min-w-[32rem] text-left"><thead><tr className="border-b"><th className="py-1 pr-2">คอลัมน์</th><th className="pr-2">จำเป็น</th><th className="pr-2">ตัวอย่าง</th><th>ใส่ได้</th></tr></thead>
+          <tbody>{IMPORT_COLUMNS.filter((column) => !column.legacy).map((column) => <tr key={column.key} className="border-b border-slate-100 align-top"><td className="py-1 pr-2 font-semibold">{column.header}</td><td className="pr-2">{column.required ? 'จำเป็น' : '–'}</td><td className="pr-2 text-slate-600">{column.example.replace(/^#/, '')}</td><td className="text-slate-600">{column.hint ?? (column.choices ? column.choices.map(([, label]) => label.split(' (')[0]).join(' / ') : '')}</td></tr>)}</tbody></table></div>
       </details>
     </Card>
 
@@ -244,7 +246,7 @@ export function PatientImport() {
         {invalidRows.length > 0 && <p className="text-sm text-slate-600">แถวที่ต้องแก้ไขจะไม่ถูกนำเข้า แก้ในไฟล์แล้วเลือกไฟล์ใหม่ได้ (รายที่นำเข้าแล้วจะถูกข้ามอัตโนมัติ)</p>}
         {validRows.length > 0 && <div className="max-h-72 overflow-auto rounded-xl border border-slate-200">
           <table className="w-full text-left text-sm"><thead className="sticky top-0 bg-slate-50"><tr><th className="p-2">บรรทัด</th><th className="p-2">ชื่อ–สกุล</th><th className="p-2">HN</th><th className="p-2">วันเกิด</th><th className="p-2">หมู่บ้าน</th></tr></thead>
-            <tbody>{validRows.slice(0, 100).map((row) => <tr key={row.line} className="border-t border-slate-100"><td className="p-2">{row.line}</td><td className="p-2">{row.fullName}</td><td className="p-2">{row.hn}</td><td className="p-2">{new Date(`${row.birthDate}T00:00:00`).toLocaleDateString('th-TH', { dateStyle: 'medium' })}</td><td className="p-2">{row.village}</td></tr>)}</tbody></table>
+            <tbody>{validRows.slice(0, 100).map((row) => <tr key={row.line} className="border-t border-slate-100"><td className="p-2">{row.line}</td><td className="p-2">{row.fullName}</td><td className="p-2">{row.hn}</td><td className="p-2">{new Date(`${row.birthDate}T00:00:00`).toLocaleDateString('th-TH', { dateStyle: 'medium' })}</td><td className="p-2">{villageLabel(row.villageNo, row.villageName, row.village)}{row.caregiverUsername ? <span className="block text-xs text-slate-500">CG: {row.caregiverUsername}</span> : null}</td></tr>)}</tbody></table>
           {validRows.length > 100 && <p className="p-2 text-sm text-slate-500">แสดง 100 แถวแรกจาก {validRows.length}</p>}
         </div>}
       </div>}
@@ -259,9 +261,10 @@ export function PatientImport() {
 
     {error && <ErrorState message={error}/>}
     {result && <Card className="border-green-200">
-      <p className="flex items-center gap-2 text-lg font-bold text-green-900"><CheckCircle2 aria-hidden/>นำเข้าใหม่ {result.created} ราย{result.skipped.length ? ` · ข้าม ${result.skipped.length} ราย` : ''}</p>
+      <p className="flex items-center gap-2 text-lg font-bold text-green-900"><CheckCircle2 aria-hidden/>นำเข้าใหม่ {result.created} ราย{result.assigned ? ` · มอบหมาย CG แล้ว ${result.assigned} ราย` : ''}{result.skipped.length ? ` · ข้าม ${result.skipped.length} ราย` : ''}</p>
+      {result.warnings.length > 0 && <div className="mt-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900"><p className="font-semibold">นำเข้าแล้วแต่ยังไม่ได้มอบหมาย CG (ไม่พบชื่อผู้ใช้หรือบัญชีถูกปิด)</p><ul className="mt-1 space-y-1">{result.warnings.map((warning) => <li key={`${warning.line}-${warning.hn}`}>บรรทัด {warning.line} (HN {warning.hn}): {warning.detail}</li>)}</ul></div>}
       {result.skipped.length > 0 && <ul className="mt-2 space-y-1 text-sm">{result.skipped.map((skip) => <li key={`${skip.line}-${skip.hn}`}>บรรทัด {skip.line} (HN {skip.hn}): {SKIP_REASONS[skip.reason] ?? skip.reason}</li>)}</ul>}
-      {result.created > 0 && <Link to="/assignments" className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-white"><UserCheck aria-hidden size={18}/>ไปมอบหมาย CG</Link>}
+      {result.created > result.assigned && <Link to="/assignments" className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-white"><UserCheck aria-hidden size={18}/>ไปมอบหมาย CG</Link>}
     </Card>}
   </AdminPage>;
 }

@@ -57,7 +57,7 @@ export function previewRespond(path: string, init: RequestInit | undefined, role
     if (!actor.capabilities.includes('patients:import')) return reply(403, envelope(false, 'FORBIDDEN', 'ไม่มีสิทธิ์นำเข้าข้อมูล', null));
     const input = patientImportSchema.safeParse(parseBody(init));
     if (!input.success) return reply(400, envelope(false, 'VALIDATION_FAILED', 'ข้อมูลไม่ครบหรือไม่ถูกต้อง', null));
-    return reply(200, envelope(true, 'OK', '', { demo: true, created: input.data.rows.length, skipped: [] }));
+    return reply(200, envelope(true, 'OK', '', { demo: true, created: input.data.rows.length, assigned: input.data.rows.filter((row) => row.caregiverUsername).length, skipped: [], warnings: [] }));
   }
 
   const write = WRITE_ROUTES[path];

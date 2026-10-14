@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { patientCreateSchema, patientGetSchema, patientUpdateSchema, type Actor, type Page } from '@smart-ltc/shared';
+import { patientCreateSchema, patientGetSchema, patientUpdateSchema, villageLabel, type Actor, type Page } from '@smart-ltc/shared';
 import { appendUnique, getById, listAll, listPage, pageOf, updateWhere, versionedUpdate, withScriptLock, type RowRecord } from '../repositories/sheets';
 import { ensureColumns } from '../initializer';
 import { activeEpisodeFor, assignCaregiver, requireEnabledUser } from './admin';
@@ -11,12 +11,6 @@ const forwardedPatientSchema = patientCreateSchema.omit({ cid: true }).extend({
   cidCiphertext: z.string().max(500).default(''),
   cidLookupHash: z.string().max(200).default('')
 });
-
-/** "หมู่ 2 บ้านหนองบัว" for lists, from the village number and name when given. */
-function villageLabel(villageNo?: string, villageName?: string, fallback = ''): string {
-  const parts = [villageNo ? `หมู่ ${villageNo}` : '', villageName ? (villageName.startsWith('บ้าน') ? villageName : `บ้าน${villageName}`) : ''].filter(Boolean);
-  return parts.length ? parts.join(' ') : fallback;
-}
 
 export function createPatient(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
   requireCapability(actor, 'patients:write');

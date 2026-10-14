@@ -47,3 +47,9 @@ export const MENTAL_HEALTH_OPTIONS = [
 export const PATIENT_STATUS_OPTIONS = [['ACTIVE', 'รับบริการ'], ['INACTIVE', 'พักการดูแล'], ['MOVED', 'ย้ายออก'], ['DECEASED', 'เสียชีวิต']] as const;
 
 export const labelOf = (options: ReadonlyArray<readonly [string, string]>, value: unknown) => options.find(([key]) => key === value)?.[1] ?? '';
+
+/** "หมู่ 2 บ้านหนองบัว" for lists, from the village number and name when given. */
+export function villageLabel(villageNo?: string, villageName?: string, fallback = ''): string {
+  const parts = [villageNo ? `หมู่ ${villageNo}` : '', villageName ? (villageName.startsWith('บ้าน') ? villageName : `บ้าน${villageName}`) : ''].filter(Boolean);
+  return parts.length ? parts.join(' ') : fallback;
+}

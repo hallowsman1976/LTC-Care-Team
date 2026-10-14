@@ -143,7 +143,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
   if (path === '/admin/patients/import' && request.method === 'POST') {
     if (!has(actor, 'patients:import')) return failure(403, 'FORBIDDEN', 'ไม่มีสิทธิ์นำเข้าข้อมูล', requestId);
     const input = patientImportSchema.parse(await request.json());
-    if (localDemo) return ok({ demo: true, created: input.rows.length, skipped: [] }, requestId);
+    if (localDemo) return ok({ demo: true, created: input.rows.length, assigned: 0, skipped: [], warnings: [] }, requestId);
     if (!isDemoMode(env) && (!input.legalBasis || !input.privacyNoticeVersion)) {
       return failure(400, 'LEGAL_BASIS_REQUIRED', 'ต้องระบุฐานกฎหมายและเวอร์ชันประกาศความเป็นส่วนตัว', requestId);
     }

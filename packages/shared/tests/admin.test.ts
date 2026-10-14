@@ -52,12 +52,30 @@ describe('import CSV', () => {
     expect(normalizeBirthDate('15-03')).toBeNull();
   });
 
-  it('skips the template example row and reads a filled-in row', () => {
-    const csv = `﻿${importTemplateCsv()}ท-01,HN-1,1100000000001,นางสมใจ ทดสอบ,15/03/2485,หญิง,"12 ม.2, ต.ทดสอบ",หมู่ 2,081 234 5678\r\n`;
-    const preview = readImportCsv(csv);
+  it('skips the template example row and reads a filled-in row of the new template', () => {
+    const row = ['ท-01', 'HN-1', '1100000000001', 'นางสมใจ ทดสอบ', 'หญิง', '15/03/2485', '81 234 5678', '"12/3, ซอยวัด"', 'หมู่ 2', 'หนองบัว', 'ต.ตัวอย่าง', 'อ.เมือง', 'จังหวัดขอนแก่น',
+      '16.4321', '102.8236', 'นายลูก ทดสอบ', '898765432', 'ลูกสาว', 'บัตรทอง', 'ความดันโลหิตสูง; เบาหวาน', '8', '', 'C3', '50', 'ปกติ', '01/10/2569', 'CG.SomJai'];
+    const preview = readImportCsv(`\uFEFF${importTemplateCsv()}${row.join(',')}\r\n`);
     expect(preview.missingColumns).toEqual([]);
     expect(preview.rows).toHaveLength(1);
-    expect(preview.rows[0]).toMatchObject({ line: 3, errors: [], row: { hn: 'HN-1', birthDate: '1942-03-15', sex: 'FEMALE', address: '12 ม.2, ต.ทดสอบ', phone: '0812345678' } });
+    expect(preview.rows[0]).toMatchObject({ line: 3, errors: [], row: {
+      hn: 'HN-1', birthDate: '1942-03-15', sex: 'FEMALE', address: '12/3, ซอยวัด', phone: '0812345678', villageNo: '2', villageName: 'หนองบัว',
+      subdistrict: 'ตัวอย่าง', district: 'เมือง', province: 'ขอนแก่น', latitude: 16.4321, longitude: 102.8236, mainCaregiverPhone: '0898765432',
+      relationship: 'CHILD', rightType: 'UC', diseases: 'ความดันโลหิตสูง, เบาหวาน', adlScore: 8, dependencyStatus: 'HOMEBOUND', taiGroup: 'C3',
+      ppsScore: 50, mentalHealthStatus: 'NORMAL', registerDate: '2026-10-01', caregiverUsername: 'cg.somjai'
+    } });
+  });
+
+  it('still reads files made from the earlier, shorter template', () => {
+    const preview = readImportCsv(`${header}\nท-01,HN-1,1100000000001,นาย ก,01/01/2480,ชาย,บ้าน,หมู่ 1,0812345678`);
+    expect(preview.rows[0]).toMatchObject({ errors: [], row: { hn: 'HN-1', address: 'บ้าน', village: 'หมู่ 1', phone: '0812345678' } });
+  });
+
+  it('explains choices it does not recognise', () => {
+    const preview = readImportCsv('HN,เลขประจำตัวประชาชน,ชื่อ-สกุล,วันเกิด,ที่อยู่,สิทธิการรักษา,คะแนน PPS\nHN-1,1100000000001,นาย ก,01/01/2480,บ้าน,บัตรเงิน,55');
+    expect(preview.rows[0]!.row).toBeNull();
+    expect(preview.rows[0]!.errors.join()).toContain('บัตรเงิน');
+    expect(preview.rows[0]!.errors.join()).toContain('คะแนน PPS');
   });
 
   it('explains rows that cannot be imported, including Excel-mangled CIDs and duplicates', () => {
@@ -74,6 +92,6 @@ describe('import CSV', () => {
   });
 
   it('reports missing required columns', () => {
-    expect(readImportCsv('ชื่อ-สกุล,HN\nก,1').missingColumns).toEqual(['รหัสท้องถิ่น', 'เลขประจำตัวประชาชน', 'วันเกิด', 'ที่อยู่']);
+    expect(readImportCsv('ชื่อ-สกุล,HN\nก,1').missingColumns).toEqual(['เลขประจำตัวประชาชน', 'วันเกิด', 'บ้านเลขที่/ที่อยู่']);
   });
 });

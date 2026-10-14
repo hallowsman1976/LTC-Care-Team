@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEPENDENCY_OPTIONS, dependencyFromAdl, MENTAL_HEALTH_OPTIONS, RELATIONSHIP_OPTIONS, RIGHT_TYPE_OPTIONS, TAI_GROUP_OPTIONS } from './patient';
 import { patientCreateSchema } from './schemas';
 
 // Admin contracts: caregiver accounts, caregiver-to-patient assignment and bulk import of
@@ -98,8 +99,17 @@ export const assignmentSetSchema = z.object({
 
 /** One register row as the browser sends it; `line` is the CSV line, for reporting back. */
 export const patientImportRowSchema = patientCreateSchema
-  .pick({ localCode: true, hn: true, cid: true, fullName: true, birthDate: true, sex: true, address: true, village: true, phone: true })
-  .extend({ line: z.number().int().min(1) });
+  .pick({
+    localCode: true, hn: true, cid: true, fullName: true, birthDate: true, sex: true, address: true, village: true, phone: true,
+    villageNo: true, villageName: true, subdistrict: true, district: true, province: true, latitude: true, longitude: true,
+    mainCaregiverName: true, mainCaregiverPhone: true, relationship: true, rightType: true, diseases: true,
+    dependencyStatus: true, adlScore: true, taiGroup: true, ppsScore: true, mentalHealthStatus: true, registerDate: true
+  })
+  .extend({
+    line: z.number().int().min(1),
+    /** The CG's sign-in name; the server assigns the patient to that caregiver. */
+    caregiverUsername: z.string().trim().toLowerCase().max(40).optional()
+  });
 
 export const MAX_IMPORT_ROWS_PER_REQUEST = 200;
 
@@ -117,18 +127,58 @@ export type PatientImportRow = z.infer<typeof patientImportRowSchema>;
 export type PatientImportInput = z.infer<typeof patientImportSchema>;
 
 type ImportKey = Exclude<keyof PatientImportRow, 'line'>;
+type Choices = ReadonlyArray<readonly [string, string]>;
 
-/** Template columns: the header the template writes, other headers accepted, and an example. */
-export const IMPORT_COLUMNS: ReadonlyArray<{ key: ImportKey; header: string; aliases: string[]; example: string; required: boolean }> = [
-  { key: 'localCode', header: 'รหัสท้องถิ่น', aliases: ['localcode', 'รหัส'], example: '#ตัวอย่าง-001', required: true },
+interface ImportColumn {
+  key: ImportKey;
+  /** The header the template writes. */
+  header: string;
+  /** Other headers accepted, including those of the earlier, shorter template. */
+  aliases: string[];
+  example: string;
+  required: boolean;
+  /** What may be typed, shown on the import page. */
+  hint?: string;
+  /** For choice columns: the codes and Thai labels, plus extra words people commonly write. */
+  choices?: Choices;
+  words?: Record<string, string[]>;
+  /** Read from older files only; not written to the template. */
+  legacy?: boolean;
+}
+
+/** Template columns, in the order of the registration form. */
+export const IMPORT_COLUMNS: readonly ImportColumn[] = [
+  { key: 'localCode', header: 'รหัสท้องถิ่น', aliases: ['localcode', 'รหัส'], example: '#ตัวอย่าง-001', required: false, hint: 'ไม่บังคับ' },
   { key: 'hn', header: 'HN', aliases: ['hn'], example: 'HN-000123', required: true },
-  { key: 'cid', header: 'เลขประจำตัวประชาชน', aliases: ['cid', 'เลขบัตรประชาชน', 'เลขประจำตัวประชาชน 13 หลัก'], example: '1100000000001', required: true },
+  { key: 'cid', header: 'เลขประจำตัวประชาชน', aliases: ['cid', 'เลขบัตรประชาชน', 'เลขประจำตัวประชาชน 13 หลัก'], example: '1100000000001', required: true, hint: '13 หลัก ตั้งคอลัมน์เป็นข้อความ' },
   { key: 'fullName', header: 'ชื่อ-สกุล', aliases: ['fullname', 'ชื่อ–สกุล', 'ชื่อ - สกุล', 'ชื่อสกุล'], example: 'นางสมใจ ตัวอย่าง', required: true },
-  { key: 'birthDate', header: 'วันเกิด', aliases: ['birthdate', 'วันเดือนปีเกิด'], example: '15/03/2485', required: true },
-  { key: 'sex', header: 'เพศ', aliases: ['sex'], example: 'หญิง', required: false },
-  { key: 'address', header: 'ที่อยู่', aliases: ['address'], example: '12 ม.2 ต.ตัวอย่าง', required: true },
-  { key: 'village', header: 'หมู่บ้าน', aliases: ['village', 'หมู่'], example: 'หมู่ 2', required: false },
-  { key: 'phone', header: 'โทรศัพท์', aliases: ['phone', 'เบอร์โทร', 'เบอร์โทรศัพท์'], example: '0812345678', required: false }
+  { key: 'sex', header: 'เพศ', aliases: ['sex'], example: 'หญิง', required: false, hint: 'ชาย / หญิง / อื่น ๆ' },
+  { key: 'birthDate', header: 'วันเกิด', aliases: ['birthdate', 'วันเดือนปีเกิด'], example: '15/03/2485', required: true, hint: 'วว/ดด/ปปปป พ.ศ. หรือ ค.ศ.' },
+  { key: 'phone', header: 'เบอร์โทร', aliases: ['phone', 'โทรศัพท์', 'เบอร์โทรศัพท์'], example: '0812345678', required: false },
+  { key: 'address', header: 'บ้านเลขที่/ที่อยู่', aliases: ['address', 'ที่อยู่', 'บ้านเลขที่'], example: '12/3', required: true },
+  { key: 'villageNo', header: 'หมู่ที่', aliases: ['villageno', 'หมู่'], example: '2', required: false, hint: 'ตัวเลข' },
+  { key: 'villageName', header: 'ชื่อหมู่บ้าน', aliases: ['villagename'], example: 'บ้านหนองบัว', required: false },
+  { key: 'subdistrict', header: 'ตำบล', aliases: ['subdistrict'], example: 'ตัวอย่าง', required: false },
+  { key: 'district', header: 'อำเภอ', aliases: ['district'], example: 'เมือง', required: false },
+  { key: 'province', header: 'จังหวัด', aliases: ['province'], example: 'ขอนแก่น', required: false },
+  { key: 'latitude', header: 'ละติจูด', aliases: ['latitude', 'lat'], example: '16.432100', required: false, hint: 'ทศนิยม เช่น 16.4321' },
+  { key: 'longitude', header: 'ลองจิจูด', aliases: ['longitude', 'lng', 'long'], example: '102.823600', required: false, hint: 'ทศนิยม เช่น 102.8236' },
+  { key: 'mainCaregiverName', header: 'ชื่อผู้ดูแลหลัก', aliases: ['maincaregivername', 'ผู้ดูแลหลัก', 'ชื่อญาติ'], example: 'นายสมชาย ตัวอย่าง', required: false },
+  { key: 'mainCaregiverPhone', header: 'เบอร์โทรผู้ดูแลหลัก', aliases: ['maincaregiverphone', 'เบอร์ญาติ'], example: '0898765432', required: false },
+  { key: 'relationship', header: 'ความสัมพันธ์', aliases: ['relationship'], example: 'บุตร', required: false, choices: RELATIONSHIP_OPTIONS,
+    words: { SPOUSE: ['สามี', 'ภรรยา'], CHILD: ['ลูก', 'บุตรชาย', 'บุตรสาว', 'ลูกชาย', 'ลูกสาว'], CHILD_IN_LAW: ['ลูกเขย', 'ลูกสะใภ้', 'บุตรเขย', 'บุตรสะใภ้'], SIBLING: ['พี่', 'น้อง'], RELATIVE: ['ญาติ'], HIRED: ['ผู้ดูแลจ้าง', 'จ้าง'] } },
+  { key: 'rightType', header: 'สิทธิการรักษา', aliases: ['righttype', 'สิทธิ'], example: 'บัตรทอง', required: false, choices: RIGHT_TYPE_OPTIONS, hint: 'บัตรทอง / ข้าราชการ / ประกันสังคม / อปท. / ชำระเอง / อื่น ๆ',
+    words: { UC: ['บัตรทอง', '30 บาท', 'ucs', 'บัตรประกันสุขภาพ'], CSMBS: ['ข้าราชการ', 'รัฐวิสาหกิจ', 'เบิกได้'], SSS: ['ประกันสังคม'], LGO: ['อปท', 'อปท.', 'ท้องถิ่น'], SELF_PAY: ['จ่ายเอง'] } },
+  { key: 'diseases', header: 'โรคประจำตัว', aliases: ['diseases', 'disease', 'โรค'], example: 'ความดันโลหิตสูง; เบาหวาน', required: false, hint: 'หลายโรคคั่นด้วย ; หรือ ,' },
+  { key: 'adlScore', header: 'คะแนน ADL', aliases: ['adlscore', 'adl'], example: '8', required: false, hint: '0–20' },
+  { key: 'dependencyStatus', header: 'ภาวะพึ่งพิง', aliases: ['dependencystatus'], example: 'ติดบ้าน', required: false, choices: DEPENDENCY_OPTIONS, hint: 'ติดสังคม / ติดบ้าน / ติดเตียง (เว้นว่างได้ ระบบคิดจากคะแนน ADL)' },
+  { key: 'taiGroup', header: 'กลุ่ม TAI', aliases: ['taigroup', 'tai'], example: 'C3', required: false, choices: TAI_GROUP_OPTIONS, hint: 'I1–I3, C2–C4, B3–B5' },
+  { key: 'ppsScore', header: 'คะแนน PPS', aliases: ['ppsscore', 'pps'], example: '50', required: false, hint: '10–100 ทีละ 10' },
+  { key: 'mentalHealthStatus', header: 'สุขภาพจิต', aliases: ['mentalhealthstatus'], example: 'ปกติ', required: false, choices: MENTAL_HEALTH_OPTIONS,
+    words: { STRESS: ['เครียด', 'วิตกกังวล'], COGNITIVE_IMPAIRMENT: ['สมองเสื่อม'], NOT_ASSESSED: ['ยังไม่ประเมิน'] } },
+  { key: 'registerDate', header: 'วันที่ลงทะเบียน', aliases: ['registerdate'], example: '01/10/2569', required: false, hint: 'เว้นว่าง = วันที่นำเข้า' },
+  { key: 'caregiverUsername', header: 'ชื่อผู้ใช้ CG', aliases: ['caregiverusername', 'caregiverid', 'cg'], example: 'cg.somjai', required: false, hint: 'มอบหมาย CG ทันที เว้นว่างได้' },
+  { key: 'village', header: 'หมู่บ้าน', aliases: ['village'], example: '', required: false, legacy: true }
 ];
 
 /** Rows whose first cell starts with # are notes or the template's example, and are skipped. */
@@ -137,7 +187,8 @@ export const IMPORT_COMMENT_PREFIX = '#';
 /** The template as CSV text (prepend a BOM when saving so Excel reads the Thai correctly). */
 export function importTemplateCsv(): string {
   const line = (cells: string[]) => cells.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',');
-  return [line(IMPORT_COLUMNS.map((column) => column.header)), line(IMPORT_COLUMNS.map((column) => column.example))].join('\r\n') + '\r\n';
+  const columns = IMPORT_COLUMNS.filter((column) => !column.legacy);
+  return [line(columns.map((column) => column.header)), line(columns.map((column) => column.example))].join('\r\n') + '\r\n';
 }
 
 /** RFC 4180 CSV: quoted fields, doubled quotes, commas and line breaks inside quotes. */
@@ -191,6 +242,24 @@ const SEX_WORDS: Record<string, PatientImportRow['sex']> = {
   อื่นๆ: 'OTHER', 'อื่น ๆ': 'OTHER', other: 'OTHER', '': 'UNKNOWN', 'ไม่ระบุ': 'UNKNOWN', unknown: 'UNKNOWN'
 };
 
+const squash = (value: string) => value.trim().toLowerCase().replace(/\s+/g, '');
+
+/** A choice cell as its code: the code itself, the Thai label (with or without its bracketed note) or a common word. */
+function choiceCode(column: ImportColumn, value: string): string | null {
+  const typed = squash(value);
+  for (const [code, label] of column.choices ?? []) {
+    const names = [code, label, label.split(' (')[0]!, ...label.split('/'), ...(column.words?.[code] ?? [])];
+    if (names.some((name) => squash(name) === typed)) return code;
+  }
+  return null;
+}
+
+/** Excel drops the leading 0 of a phone number stored as a number: put it back on 9-digit mobiles. */
+const phoneOf = (value: string) => {
+  const digits = value.replace(/[\s-]/g, '');
+  return /^[1-9]\d{8}$/.test(digits) ? `0${digits}` : digits;
+};
+
 export interface ImportPreviewRow { line: number; row: PatientImportRow | null; values: Record<string, string>; errors: string[] }
 export interface ImportPreview { rows: ImportPreviewRow[]; missingColumns: string[] }
 
@@ -214,19 +283,41 @@ export function readImportCsv(text: string): ImportPreview {
     const values = Object.fromEntries(IMPORT_COLUMNS.map((column) => [column.key, (cells[columnOf.get(column.key) ?? -1] ?? '').trim()])) as Record<ImportKey, string>;
     const errors: string[] = [];
     if (/e\+/i.test(values.cid)) errors.push('เลขประจำตัวประชาชนถูก Excel แปลงเป็นเลขวิทยาศาสตร์ ให้ตั้งคอลัมน์เป็น “ข้อความ” แล้วพิมพ์ใหม่');
-    const cid = values.cid.replace(/[\s-]/g, '');
     const birthDate = normalizeBirthDate(values.birthDate);
     if (values.birthDate && !birthDate) errors.push('วันเกิดไม่ถูกต้อง ใช้ วว/ดด/ปปปป (พ.ศ. หรือ ค.ศ.) หรือ ปปปป-ดด-วว');
+    const registerDate = values.registerDate ? normalizeBirthDate(values.registerDate) : undefined;
+    if (registerDate === null) errors.push('วันที่ลงทะเบียนไม่ถูกต้อง ใช้ วว/ดด/ปปปป และต้องไม่เกินวันนี้');
     const sex = SEX_WORDS[values.sex.toLowerCase()];
     if (!sex) errors.push('เพศต้องเป็น ชาย หญิง อื่น ๆ หรือเว้นว่าง');
-    const candidate = { line, localCode: values.localCode, hn: values.hn, cid, fullName: values.fullName, birthDate: birthDate ?? '', sex: sex ?? 'UNKNOWN', address: values.address, village: values.village, phone: values.phone.replace(/\s/g, '') };
+    const choices: Record<string, string | undefined> = {};
+    for (const column of IMPORT_COLUMNS.filter((item) => item.choices)) {
+      const value = values[column.key];
+      if (!value) continue;
+      const code = choiceCode(column, value);
+      if (code) choices[column.key] = code;
+      else errors.push(`${column.header}: “${value}” ไม่ตรงกับตัวเลือก (${column.hint ?? column.choices!.map(([, label]) => label.split(' (')[0]).join(' / ')})`);
+    }
+    // Leave the dependency group to follow the ADL score when the file gives only the score.
+    const adl = values.adlScore === '' ? undefined : Number(values.adlScore);
+    if (!choices.dependencyStatus && adl !== undefined && Number.isInteger(adl) && adl >= 0 && adl <= 20) choices.dependencyStatus = dependencyFromAdl(adl);
+    const candidate = {
+      line, localCode: values.localCode, hn: values.hn, cid: values.cid.replace(/[\s-]/g, ''), fullName: values.fullName,
+      birthDate: birthDate ?? '', sex: sex ?? 'UNKNOWN', address: values.address, village: values.village, phone: phoneOf(values.phone),
+      villageNo: values.villageNo.replace(/^หมู่\s*(ที่)?\s*/, ''), villageName: values.villageName, subdistrict: values.subdistrict.replace(/^ต(ำบล|\.)\s*/, ''),
+      district: values.district.replace(/^อ(ำเภอ|\.)\s*/, ''), province: values.province.replace(/^จ(ังหวัด|\.)\s*/, ''),
+      latitude: values.latitude, longitude: values.longitude, mainCaregiverName: values.mainCaregiverName, mainCaregiverPhone: phoneOf(values.mainCaregiverPhone),
+      relationship: choices.relationship, rightType: choices.rightType, diseases: values.diseases.split(/[,;|]/).map((item) => item.trim()).filter(Boolean).join(', '),
+      dependencyStatus: choices.dependencyStatus, adlScore: values.adlScore, taiGroup: choices.taiGroup, ppsScore: values.ppsScore,
+      mentalHealthStatus: choices.mentalHealthStatus, registerDate: registerDate ?? undefined, caregiverUsername: values.caregiverUsername || undefined
+    };
     const parsed = patientImportRowSchema.safeParse(candidate);
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
         const column = IMPORT_COLUMNS.find((item) => item.key === issue.path[0]);
         if (column?.key === 'birthDate' && values.birthDate) continue;
-        if (column?.key === 'cid' && errors.length && /e\+/i.test(values.cid)) continue;
-        errors.push(column ? `${column.header}: ${issue.code === 'too_small' ? 'ต้องกรอก' : issue.message.startsWith('กรุณา') ? issue.message : 'รูปแบบไม่ถูกต้อง'}` : issue.message);
+        if (column?.key === 'cid' && /e\+/i.test(values.cid)) continue;
+        const reason = issue.code === 'too_small' && !values[column?.key ?? 'hn'] ? 'ต้องกรอก' : issue.message.startsWith('กรุณา') || issue.message.startsWith('เบอร์') ? issue.message : column?.hint ? `รูปแบบไม่ถูกต้อง (${column.hint})` : 'รูปแบบไม่ถูกต้อง';
+        errors.push(column ? `${column.header}: ${reason}` : issue.message);
       }
     }
     rows.push({ line, values, row: errors.length === 0 && parsed.success ? parsed.data : null, errors });

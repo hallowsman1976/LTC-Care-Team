@@ -36,7 +36,7 @@ External API อยู่ใต้ `/api/v1`. ทุก response JSON ใช้ 
 | GET | `/admin/users` | `users:manage` | All accounts with role, sign-in name, status and CM credential expiry; no secrets |
 | GET | `/admin/assignments` | `assignments:manage` | Every active patient with the current CG |
 | POST | `/admin/assignments` | `assignments:manage` | `assignmentSetSchema`; ends the previous CG assignment, moves upcoming visits, opens an episode if none |
-| POST | `/admin/patients/import` | `patients:import` | `patientImportSchema`, ≤ 200 rows; CIDs encrypted at Worker; duplicates skipped and reported |
+| POST | `/admin/patients/import` | `patients:import` | `patientImportSchema`, ≤ 200 rows, all registration columns; CIDs encrypted at Worker; duplicates skipped and reported; `caregiverUsername` assigns the CG (needs `assignments:manage`), unknown names are imported unassigned and returned in `warnings` |
 | POST | `/exports/patients.csv` | CM + `export:phi` | Auth within 5 minutes (sign in again) and `x-export-reason` required |
 
 Request schemas live in `packages/shared/src/actions.ts`. The gateway validates them and forwards only the parsed fields; GAS validates again. There is no generic proxy to GAS actions, and `auth.*` actions are reachable only through the sign-in routes.

@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { assignmentSetSchema, caregiverCreateSchema, caregiverGetSchema, caregiverUpdateSchema, MAX_IMPORT_ROWS_PER_REQUEST, patientImportRowSchema, patientImportSchema, type Actor, type Page } from '@smart-ltc/shared';
+import { villageLabel, assignmentSetSchema, caregiverCreateSchema, caregiverGetSchema, caregiverUpdateSchema, MAX_IMPORT_ROWS_PER_REQUEST, patientImportRowSchema, patientImportSchema, type Actor, type Page } from '@smart-ltc/shared';
 import { getAppMode } from '../config';
-import { ensureSheet } from '../initializer';
+import { ensureColumns, ensureSheet } from '../initializer';
 import { appendUnique, bulkAppend, getById, getSheet, headersOf, listAll, updateWhere, versionedUpdate, withScriptLock, type RowRecord } from '../repositories/sheets';
 import { requireCapability } from '../security/rbac';
 import { audit } from '../security/audit';
@@ -262,12 +262,15 @@ type SkipReason = 'DUPLICATE_HN' | 'DUPLICATE_CID' | 'POTENTIAL_DUPLICATE';
 
 /**
  * Bulk registration from the unit's register. Each new patient gets an open care episode (pending
- * ADL assessment). Rows that match an existing patient by HN, CID, or name with birth date are
- * skipped and reported, never merged: a CM resolves those one by one.
+ * ADL assessment), and the CG named by sign-in name, if any. Rows that match an existing patient by
+ * HN, CID, or name with birth date are skipped and reported, never merged: a CM resolves those one
+ * by one. An unknown CG does not block the row: the patient is registered unassigned and reported.
  */
 export function importPatients(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
   requireCapability(actor, 'patients:import');
   const input = forwardedImportSchema.parse(payload);
+  if (input.rows.some((row) => row.caregiverUsername)) requireCapability(actor, 'assignments:manage');
+  ensureColumns('Patients');
   const now = new Date().toISOString();
   const today = bangkokToday();
   const outcome = withScriptLock(() => {
@@ -275,32 +278,49 @@ export function importPatients(actor: Actor, payload: Record<string, unknown>): 
     const hns = new Set(existing.map((row) => String(row.hn).toLowerCase()));
     const cids = new Set(existing.map((row) => String(row.cidLookupHash)).filter(Boolean));
     const people = new Set(existing.map((row) => `${String(row.fullName).toLocaleLowerCase('th')}|${String(row.birthDate)}`));
+    // Sign-in name -> enabled caregiver, resolved once for the whole file.
+    const enabledCaregivers = new Set(listAll('Users', (row) => String(row.role) === 'CG' && String(row.enabled).toLowerCase() === 'true').map((row) => String(row.userId)));
+    const caregiverByName = new Map(listAll('AuthCredentials', (row) => String(row.status) === 'ACTIVE' && enabledCaregivers.has(String(row.userId)))
+      .map((row) => [String(row.identifierNormalized).toLowerCase(), String(row.userId)]));
     const patients: RowRecord[] = [];
     const episodes: RowRecord[] = [];
     const consents: RowRecord[] = [];
+    const assignments: RowRecord[] = [];
     const skipped: Array<{ line: number; hn: string; reason: SkipReason }> = [];
+    const warnings: Array<{ line: number; hn: string; reason: 'CAREGIVER_NOT_FOUND'; detail: string }> = [];
     for (const row of input.rows) {
       const person = `${row.fullName.toLocaleLowerCase('th')}|${row.birthDate}`;
       const reason: SkipReason | null = hns.has(row.hn.toLowerCase()) ? 'DUPLICATE_HN' : cids.has(row.cidLookupHash) ? 'DUPLICATE_CID' : people.has(person) ? 'POTENTIAL_DUPLICATE' : null;
       if (reason) { skipped.push({ line: row.line, hn: row.hn, reason }); continue; }
       hns.add(row.hn.toLowerCase()); cids.add(row.cidLookupHash); people.add(person);
       const patientId = Utilities.getUuid();
+      const episodeId = Utilities.getUuid();
+      const caregiverId = row.caregiverUsername ? caregiverByName.get(row.caregiverUsername) ?? '' : '';
+      if (row.caregiverUsername && !caregiverId) warnings.push({ line: row.line, hn: row.hn, reason: 'CAREGIVER_NOT_FOUND', detail: row.caregiverUsername });
       patients.push({
         patientId, localCode: row.localCode, hn: row.hn, cidCiphertext: row.cidCiphertext, cidLookupHash: row.cidLookupHash,
-        fullName: row.fullName, birthDate: row.birthDate, sex: row.sex, address: row.address, village: row.village, phone: row.phone ?? '',
+        fullName: row.fullName, birthDate: row.birthDate, sex: row.sex, address: row.address, phone: row.phone ?? '',
+        village: villageLabel(row.villageNo, row.villageName, row.village),
+        villageNo: row.villageNo ?? '', villageName: row.villageName ?? '', subdistrict: row.subdistrict ?? '', district: row.district ?? '', province: row.province ?? '',
+        latitude: row.latitude ?? '', longitude: row.longitude ?? '',
+        mainCaregiverName: row.mainCaregiverName ?? '', mainCaregiverPhone: row.mainCaregiverPhone ?? '', relationship: row.relationship ?? '',
+        rightType: row.rightType ?? '', diseases: row.diseases ?? '', dependencyStatus: row.dependencyStatus ?? '',
+        adlScore: row.adlScore ?? '', taiGroup: row.taiGroup ?? '', ppsScore: row.ppsScore ?? '', mentalHealthStatus: row.mentalHealthStatus ?? '',
+        careManagerId: actor.role === 'CM' ? actor.userId : '', caregiverId, registerDate: row.registerDate || today,
         status: 'ACTIVE', createdAt: now, updatedAt: now, createdBy: actor.userId, recordVersion: 1
       });
-      episodes.push({ episodeId: Utilities.getUuid(), patientId, startDate: today, endDate: '', eligibilityStatus: 'PENDING_ASSESSMENT', status: 'ACTIVE', fundingType: 'LTC', legalBasis: input.legalBasis ?? '' });
+      episodes.push({ episodeId, patientId, startDate: today, endDate: '', eligibilityStatus: 'PENDING_ASSESSMENT', status: 'ACTIVE', fundingType: 'LTC', legalBasis: input.legalBasis ?? '' });
+      if (caregiverId) assignments.push({ assignmentId: Utilities.getUuid(), episodeId, staffId: caregiverId, role: 'CG', dateFrom: today, dateTo: '', status: 'ACTIVE', assignedBy: actor.userId });
       if (input.legalBasis) {
         consents.push({ consentId: Utilities.getUuid(), patientId, purpose: `LTC_CARE:${input.privacyNoticeVersion || 'UNSPECIFIED'}`, legalBasis: input.legalBasis, givenBy: actor.userId, evidenceFileId: '', givenAt: now, revokedAt: '' });
       }
     }
-    for (const [name, records] of [['Patients', patients], ['CareEpisodes', episodes], ['PatientConsents', consents]] as const) {
+    for (const [name, records] of [['Patients', patients], ['CareEpisodes', episodes], ['StaffAssignments', assignments], ['PatientConsents', consents]] as const) {
       const sheet = getSheet(name);
       bulkAppend(sheet, headersOf(sheet), records);
     }
-    return { created: patients.length, skipped };
+    return { created: patients.length, assigned: assignments.length, skipped, warnings };
   });
-  audit(actor.userId, 'patient.import', 'Patient', '*', 'SUCCESS', `CREATED:${outcome.created};SKIPPED:${outcome.skipped.length}`);
+  audit(actor.userId, 'patient.import', 'Patient', '*', 'SUCCESS', `CREATED:${outcome.created};ASSIGNED:${outcome.assigned};SKIPPED:${outcome.skipped.length}`);
   return outcome;
 }
