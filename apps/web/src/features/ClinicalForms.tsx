@@ -1,12 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import { type Page, adlAssessmentItemsSchema, calculateAdlTotal, ltcObservationSchema, patientCreateSchema, suggestLtcGroup } from '@smart-ltc/shared';
 import { api, isDemoMode, post, todayInBangkok } from '../lib/api';
 import { Button, Card, ErrorState, Status } from '../components/ui';
+import { ThaiDatePicker } from '../components/ThaiDatePicker';
 
 const fieldClass = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2';
 const labelClass = 'block text-sm font-semibold text-slate-700';
@@ -41,7 +42,8 @@ export function PatientForm() {
   const submit = form.handleSubmit((values) => attempt(setOutcome, () => post('/patients', values), isDemoMode ? 'บันทึกข้อมูลจำลองแล้ว' : 'บันทึกผู้รับบริการและฐานการประมวลผลแล้ว'));
   return <FormPage title="เพิ่มผู้รับบริการ" description={isDemoMode ? 'ห้ามกรอกข้อมูลบุคคลจริงในระบบ DEMO' : 'กรอกเฉพาะข้อมูลที่จำเป็นตามฐานการประมวลผลที่หน่วยบริการอนุมัติ'}>
     <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
-      {([['localCode', 'รหัสท้องถิ่น'], ['hn', 'HN'], ['cid', isDemoMode ? 'CID จำลอง 13 หลัก' : 'เลขประจำตัวประชาชน 13 หลัก'], ['fullName', isDemoMode ? 'ชื่อ–สกุลจำลอง' : 'ชื่อ–สกุล'], ['birthDate', 'วันเกิด']] as const).map(([name, label]) => <label className={labelClass} key={name}>{label}<input type={name === 'birthDate' ? 'date' : 'text'} {...form.register(name)} className={fieldClass}/><span className="text-xs text-danger">{form.formState.errors[name]?.message}</span></label>)}
+      {([['localCode', 'รหัสท้องถิ่น'], ['hn', 'HN'], ['cid', isDemoMode ? 'CID จำลอง 13 หลัก' : 'เลขประจำตัวประชาชน 13 หลัก'], ['fullName', isDemoMode ? 'ชื่อ–สกุลจำลอง' : 'ชื่อ–สกุล']] as const).map(([name, label]) => <label className={labelClass} key={name}>{label}<input type="text" {...form.register(name)} className={fieldClass}/><span className="text-xs text-danger">{form.formState.errors[name]?.message}</span></label>)}
+      <label className={labelClass}>วันเกิด<Controller control={form.control} name="birthDate" render={({ field }) => <ThaiDatePicker value={field.value ?? ''} onChange={field.onChange} onBlur={field.onBlur} maxDate={todayInBangkok()} invalid={Boolean(form.formState.errors.birthDate)} className={fieldClass}/>}/><span className="text-xs text-danger">{form.formState.errors.birthDate?.message}</span></label>
       <label className={labelClass}>เพศ<select {...form.register('sex')} className={fieldClass}><option value="UNKNOWN">ไม่ระบุ</option><option value="FEMALE">หญิง</option><option value="MALE">ชาย</option><option value="OTHER">อื่น ๆ</option></select></label>
       <label className={`${labelClass} md:col-span-2`}>{isDemoMode ? 'ที่อยู่จำลอง' : 'ที่อยู่สำหรับให้บริการ'}<textarea {...form.register('address')} className={fieldClass}/><span className="text-xs text-danger">{form.formState.errors.address?.message}</span></label>
       <label className={labelClass}>หมู่บ้าน<input {...form.register('village')} className={fieldClass}/></label>

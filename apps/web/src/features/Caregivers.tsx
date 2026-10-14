@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Camera, CheckCircle2, KeyRound, Pencil, Plus, Trash2, UserPlus, UserRound } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { useFieldArray, useForm, type DefaultValues, type UseFormRegisterReturn, type UseFormReturn } from 'react-hook-form';
+import { Controller, useFieldArray, useForm, type DefaultValues, type UseFormRegisterReturn, type UseFormReturn } from 'react-hook-form';
 import { Link, useParams } from 'react-router-dom';
 import type { z } from 'zod';
 import {
@@ -11,6 +11,8 @@ import {
 } from '@smart-ltc/shared';
 import { api, isDemoMode, post } from '../lib/api';
 import { compressImage, type PreparedImage } from '../lib/images';
+import { toIsoDate } from '../lib/thaiDate';
+import { ThaiDatePicker } from '../components/ThaiDatePicker';
 import { Button, Card, ErrorState, Loading, Status } from '../components/ui';
 import { AdminPage, fieldClass, labelClass, messageOf } from './adminShared';
 
@@ -102,7 +104,10 @@ function ProfileFields({ form, photoPicker, cidLabel, cidHint }: { form: UseForm
       {photoPicker}
       <label className={labelClass}>ชื่อ–สกุล<input {...form.register('displayName')} className={fieldClass} autoComplete="off"/><FieldError message={errors.displayName?.message}/></label>
       <label className={labelClass}>{cidLabel}<input {...form.register('cid')} inputMode="numeric" maxLength={13} className={fieldClass} autoComplete="off"/>{cidHint && <span className="block text-xs font-normal text-slate-500">{cidHint}</span>}<FieldError message={errors.cid?.message}/></label>
-      <label className={labelClass}>วันเกิด<input type="date" {...form.register('birthDate')} className={fieldClass}/><FieldError message={errors.birthDate?.message}/></label>
+      <label className={labelClass}>วันเกิด
+        <Controller control={form.control} name="birthDate" render={({ field }) => <ThaiDatePicker value={field.value ?? ''} onChange={field.onChange} onBlur={field.onBlur} maxDate={toIsoDate(new Date())} invalid={Boolean(errors.birthDate)} className={fieldClass}/>}/>
+        <FieldError message={errors.birthDate?.message}/>
+      </label>
       <label className={labelClass}>เบอร์โทร<input type="tel" {...form.register('phone')} inputMode="tel" className={fieldClass} placeholder="08xxxxxxxx"/><FieldError message={errors.phone?.message}/></label>
       <label className={labelClass}>อีเมล <span className="font-normal text-slate-500">(ไม่บังคับ)</span><input type="email" {...form.register('email')} className={fieldClass} autoComplete="off"/><FieldError message={errors.email?.message}/></label>
       <label className={`${labelClass} md:col-span-2`}>ที่อยู่<textarea {...form.register('address')} rows={2} className={fieldClass} placeholder="บ้านเลขที่ หมู่ ตำบล อำเภอ จังหวัด"/><FieldError message={errors.address?.message}/></label>

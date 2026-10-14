@@ -10,3 +10,12 @@ button, input, select, textarea, a { min-height: 44px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
 
 .swal2-popup { font-family: inherit; border-radius: 1rem; }
+
+/* Thai date picker (flatpickr): the app's 44px touch minimum would distort the calendar grid. */
+.flatpickr-calendar { font-family: inherit; }
+.flatpickr-calendar :is(button, input, select, a) { min-height: 0; }
+.flatpickr-calendar .flatpickr-current-month { display: flex; align-items: center; justify-content: center; gap: 0.25rem; padding-top: 4px; }
+.flatpickr-calendar .flatpickr-monthDropdown-months,
+.flatpickr-calendar .flatpickr-be-year { height: 30px; border: 1px solid #CBD5E1; border-radius: 0.5rem; background: #fff; padding: 0 0.25rem; font: inherit; font-size: 0.95rem; font-weight: 600; color: #0F172A; cursor: pointer; }
+.flatpickr-calendar .flatpickr-monthDropdown-months { margin: 0; appearance: auto; }
+.flatpickr-day.selected, .flatpickr-day.selected:hover { background: #0284C7; border-color: #0284C7; }
