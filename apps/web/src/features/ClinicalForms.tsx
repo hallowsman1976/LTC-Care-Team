@@ -1,10 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
-import { adlAssessmentItemsSchema, calculateAdlTotal, ltcObservationSchema, patientCreateSchema, suggestLtcGroup } from '@smart-ltc/shared';
-import { isDemoMode, post, todayInBangkok } from '../lib/api';
+import { type Page, adlAssessmentItemsSchema, calculateAdlTotal, ltcObservationSchema, patientCreateSchema, suggestLtcGroup } from '@smart-ltc/shared';
+import { api, isDemoMode, post, todayInBangkok } from '../lib/api';
 import { Button, Card, ErrorState, Status } from '../components/ui';
 
 const fieldClass = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2';
@@ -51,24 +52,86 @@ export function PatientForm() {
   </FormPage>;
 }
 
-const adlLabels: Array<[keyof z.infer<typeof adlAssessmentItemsSchema>, string, number[]]> = [
-  ['feeding', 'รับประทานอาหาร', [0, 1, 2]], ['grooming', 'ล้างหน้า/หวีผม', [0, 1]],
-  ['transfer', 'ลุกจากเตียงไปเก้าอี้', [0, 1, 2, 3]], ['toiletUse', 'ใช้ห้องน้ำ', [0, 1, 2]],
-  ['mobility', 'การเคลื่อนที่', [0, 1, 2, 3]], ['dressing', 'การแต่งตัว', [0, 1, 2]],
-  ['stairs', 'ขึ้นลงบันได', [0, 1, 2]], ['bathing', 'อาบน้ำ', [0, 1]],
-  ['bowels', 'การควบคุมอุจจาระ', [0, 1, 2]], ['bladder', 'การควบคุมปัสสาวะ', [0, 1, 2]]
+type AdlKey = keyof z.infer<typeof adlAssessmentItemsSchema>;
+
+/** Barthel ADL: what each score means, so assessors score observed ability the same way. */
+export const ADL_ITEMS: Array<{ key: AdlKey; title: string; hint?: string; levels: string[] }> = [
+  { key: 'feeding', title: '1. การรับประทานอาหาร', hint: 'เมื่อเตรียมสำรับไว้ให้เรียบร้อยต่อหน้า', levels: [
+    'ตักอาหารเข้าปากเองไม่ได้ ต้องมีคนป้อนให้',
+    'ตักอาหารเองได้แต่ต้องมีคนช่วย เช่น ช่วยตักเตรียมไว้หรือตัดเป็นชิ้นเล็กให้ก่อน',
+    'ตักอาหารและช่วยตัวเองได้เป็นปกติ'] },
+  { key: 'grooming', title: '2. การล้างหน้า หวีผม แปรงฟัน โกนหนวด', hint: 'ในช่วง 24–48 ชั่วโมงที่ผ่านมา', levels: [
+    'ต้องมีคนช่วย',
+    'ทำได้เอง (รวมถึงกรณีที่มีคนเตรียมอุปกรณ์ไว้ให้)'] },
+  { key: 'transfer', title: '3. การลุกนั่งจากที่นอน หรือจากเตียงไปเก้าอี้', levels: [
+    'นั่งไม่ได้ (นั่งแล้วล้ม) หรือต้องใช้คน 2 คนช่วยยกขึ้น',
+    'ต้องช่วยมากจึงนั่งได้ เช่น ใช้คนที่มีทักษะ 1 คน หรือคนทั่วไป 2 คนพยุงหรือดันขึ้น',
+    'ต้องช่วยบ้าง เช่น บอกให้ทำตาม ช่วยพยุงเล็กน้อย หรือคอยดูแลเพื่อความปลอดภัย',
+    'ทำได้เอง'] },
+  { key: 'toiletUse', title: '4. การใช้ห้องน้ำ', levels: [
+    'ช่วยตัวเองไม่ได้',
+    'ทำเองได้บ้าง (อย่างน้อยทำความสะอาดตัวเองหลังเสร็จธุระได้) แต่ต้องช่วยในบางขั้นตอน',
+    'ช่วยตัวเองได้ดี ขึ้นลงโถส้วม ทำความสะอาด และจัดเสื้อผ้าได้เอง'] },
+  { key: 'mobility', title: '5. การเคลื่อนที่ภายในห้องหรือบ้าน', levels: [
+    'เคลื่อนที่ไปไหนไม่ได้',
+    'ใช้รถเข็นเคลื่อนที่ได้เองโดยไม่ต้องมีคนเข็น และเข้าออกมุมห้องหรือประตูได้',
+    'เดินหรือเคลื่อนที่โดยมีคนช่วย เช่น พยุง บอกให้ทำตาม หรือคอยดูแลเพื่อความปลอดภัย',
+    'เดินหรือเคลื่อนที่ได้เอง'] },
+  { key: 'dressing', title: '6. การสวมใส่เสื้อผ้า', levels: [
+    'ต้องมีคนสวมใส่ให้ ช่วยตัวเองแทบไม่ได้',
+    'ช่วยตัวเองได้ประมาณครึ่งหนึ่ง ที่เหลือต้องมีคนช่วย',
+    'ช่วยตัวเองได้ดี รวมทั้งติดกระดุม รูดซิป หรือใช้เสื้อผ้าที่ดัดแปลงให้เหมาะสม'] },
+  { key: 'stairs', title: '7. การขึ้นลงบันได 1 ชั้น', levels: [
+    'ทำไม่ได้',
+    'ต้องมีคนช่วย',
+    'ขึ้นลงได้เอง (ถ้าใช้เครื่องช่วยเดิน ต้องนำขึ้นลงได้เองด้วย)'] },
+  { key: 'bathing', title: '8. การอาบน้ำ', levels: [
+    'ต้องมีคนช่วยหรือทำให้',
+    'อาบน้ำได้เอง'] },
+  { key: 'bowels', title: '9. การกลั้นอุจจาระ', hint: 'ในช่วง 1 สัปดาห์ที่ผ่านมา', levels: [
+    'กลั้นไม่ได้ หรือต้องสวนอุจจาระเป็นประจำ',
+    'กลั้นไม่ได้บางครั้ง (น้อยกว่าสัปดาห์ละ 1 ครั้ง)',
+    'กลั้นได้ปกติ'] },
+  { key: 'bladder', title: '10. การกลั้นปัสสาวะ', hint: 'ในช่วง 1 สัปดาห์ที่ผ่านมา', levels: [
+    'กลั้นไม่ได้ หรือใส่สายสวนปัสสาวะแต่ดูแลเองไม่ได้',
+    'กลั้นไม่ได้บางครั้ง (น้อยกว่าวันละ 1 ครั้ง)',
+    'กลั้นได้ปกติ'] }
 ];
+
+interface PatientName { patientId: string; fullName: string; localCode?: string; hn?: string }
+
+/** Names the patient on clinical forms, so a CM never scores the wrong person by id alone. */
+function PatientBanner({ patientId }: { patientId: string }) {
+  const query = useQuery({ queryKey: ['patients', 'names'], queryFn: () => api<Page<PatientName>>('/patients') });
+  const patient = query.data?.items.find((item) => item.patientId === patientId);
+  return <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-3">
+    <p className="text-sm text-slate-600">ผู้รับบริการ</p>
+    <p className="text-lg font-bold">{patient ? patient.fullName : query.isLoading ? 'กำลังโหลด…' : 'ไม่พบชื่อในรายการ'}</p>
+    <p className="text-sm text-slate-600">{[patient?.localCode, patient?.hn ? `HN ${patient.hn}` : '', patientId].filter(Boolean).join(' · ')}</p>
+  </div>;
+}
 
 export function AdlForm() {
   const { id: patientId = '' } = useParams();
   const [outcome, setOutcome] = useState<Outcome>(null);
-  const form = useForm<z.infer<typeof adlAssessmentItemsSchema>>({ resolver: zodResolver(adlAssessmentItemsSchema), defaultValues: Object.fromEntries(adlLabels.map(([key]) => [key, 0])) as z.infer<typeof adlAssessmentItemsSchema> });
+  // No defaults: an unanswered item must stay visibly unanswered rather than score 0.
+  const form = useForm<z.infer<typeof adlAssessmentItemsSchema>>({ resolver: zodResolver(adlAssessmentItemsSchema) });
   const values = form.watch();
-  const total = adlAssessmentItemsSchema.safeParse(values).success ? calculateAdlTotal(values) : 0;
-  return <FormPage title="ประเมิน Barthel ADL" description="ประเมินสิ่งที่ทำได้จริงและระบบจะคำนวณคะแนนใหม่ฝั่ง server">
+  const answered = ADL_ITEMS.filter(({ key }) => typeof values[key] === 'number').length;
+  const total = adlAssessmentItemsSchema.safeParse(values).success ? calculateAdlTotal(values) : null;
+  const errors = form.formState.errors;
+  return <FormPage title="ประเมิน Barthel ADL" description="เลือกระดับที่ผู้รับบริการทำได้จริงในปัจจุบัน ระบบจะคำนวณคะแนนใหม่ฝั่ง server">
+    <PatientBanner patientId={patientId}/>
     <form onSubmit={form.handleSubmit((items) => attempt(setOutcome, () => post('/adl-assessments', { patientId, assessmentDate: todayInBangkok(), items }), 'ส่งแบบประเมินแล้ว'))} className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-2">{adlLabels.map(([name, label, options]) => <label key={name} className={labelClass}>{label}<select {...form.register(name, { valueAsNumber: true })} className={fieldClass}>{options.map((score) => <option key={score} value={score}>{score} คะแนน</option>)}</select></label>)}</div>
-      <div className="flex items-center justify-between rounded-xl bg-sky-50 p-4"><span className="font-bold">คะแนนรวม</span><span aria-live="polite" className="text-2xl font-bold text-primary">{total}/20</span></div>
+      {ADL_ITEMS.map(({ key, title, hint, levels }) => <fieldset key={key} className="rounded-xl border border-slate-200 p-3">
+        <legend className="px-1 font-bold">{title}{hint && <span className="ml-2 text-sm font-normal text-slate-500">({hint})</span>}</legend>
+        <div className="mt-1 space-y-2">{levels.map((text, score) => <label key={score} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${values[key] === score ? 'border-primary bg-sky-50' : 'border-slate-200'}`}>
+          <input type="radio" name={key} checked={values[key] === score} onChange={() => form.setValue(key, score as never, { shouldValidate: true })} className="mt-1 h-5 w-5"/>
+          <span className="flex-1">{text}</span><span className="whitespace-nowrap font-bold text-primary">{score} คะแนน</span>
+        </label>)}</div>
+        {errors[key] && <p className="mt-1 text-xs text-danger">กรุณาเลือกระดับของข้อนี้</p>}
+      </fieldset>)}
+      <div className="sticky bottom-20 flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 shadow-sm md:bottom-4"><span className="font-bold">คะแนนรวม <span className="text-sm font-normal text-slate-600">(ตอบแล้ว {answered}/{ADL_ITEMS.length} ข้อ)</span></span><span aria-live="polite" className="text-2xl font-bold text-primary">{total ?? '–'}/20</span></div>
       <Button type="submit" disabled={form.formState.isSubmitting}>อนุมัติแบบประเมิน</Button><OutcomeMessage outcome={outcome}/>
     </form>
   </FormPage>;
@@ -87,6 +150,7 @@ export function ClassificationForm() {
   // against the latest approved ADL assessment when the CM confirms.
   const suggestion = suggestLtcGroup({ adlTotal: 0, mobilityStatus, cognitiveStatus, terminalStatus });
   return <FormPage title="ยืนยันกลุ่ม LTC" description="คำแนะนำไม่ใช่การยืนยัน CM ต้องเลือกและระบุเหตุผลเสมอ ระบบใช้คะแนน ADL ที่อนุมัติล่าสุดของผู้รับบริการ">
+    <PatientBanner patientId={patientId}/>
     <form onSubmit={form.handleSubmit(({ groupNumber, rationale, ...observation }) => attempt(setOutcome, () => post('/ltc-classifications', { patientId, observation, groupNumber, rationale }), 'ยืนยันกลุ่มแล้ว'))} className="space-y-4">
       <div className="grid gap-3 md:grid-cols-3">
         <label className={labelClass}>การเคลื่อนไหว<select {...form.register('mobilityStatus')} className={fieldClass}><option value="UNKNOWN">ยังไม่ทราบ</option><option value="INDEPENDENT">อิสระ</option><option value="ASSISTED">ต้องช่วย</option><option value="DEPENDENT">ไม่สามารถเอง</option></select></label>

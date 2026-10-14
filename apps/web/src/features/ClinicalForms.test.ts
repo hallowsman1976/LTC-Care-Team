@@ -30,3 +30,16 @@ describe('care plan form validation', () => {
     expect(carePlanSchema.safeParse({ ...base, unit: 'MONTH', weekdays: false, dayOfMonth: '15' }).success).toBe(true);
   });
 });
+
+describe('ADL form', () => {
+  it('describes every score the server accepts, and no others', async () => {
+    const { ADL_ITEMS } = await import('./ClinicalForms');
+    const { adlAssessmentItemsSchema } = await import('@smart-ltc/shared');
+    expect(ADL_ITEMS.map((item) => item.key).sort()).toEqual(Object.keys(adlAssessmentItemsSchema.shape).sort());
+    for (const { key, levels } of ADL_ITEMS) {
+      const field = adlAssessmentItemsSchema.shape[key];
+      levels.forEach((_, score) => expect(field.safeParse(score).success).toBe(true));
+      expect(field.safeParse(levels.length).success).toBe(false);
+    }
+  });
+});
