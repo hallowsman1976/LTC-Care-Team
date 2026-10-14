@@ -119,6 +119,60 @@ function UploadProgress({ slot }: { slot: ImageSlot }) {
   </div>;
 }
 
+export const STEPS: Array<{ title: string; fields: string[] }> = [
+  { title: 'ข้อมูลการเยี่ยม', fields: ['visitDate', 'startTime', 'endTime', 'caregiverName', 'caregiverRelation', 'caregiverPhone'] },
+  { title: 'สุขภาพแรกรับและสัญญาณชีพ', fields: ['weightKg', 'heightCm', 'vitals'] },
+  { title: 'ประเมิน ADL', fields: ['adl'] },
+  { title: 'สุขภาพจิต', fields: ['q2', 'q9', 'q8'] },
+  { title: 'กิจกรรมการดูแล', fields: ['dailyCare', 'basicHealth', 'otherCare'] },
+  { title: 'ภาพและลายมือชื่อ', fields: ['olderImageId', 'serviceImageId', 'signatureImageId'] },
+  { title: 'ตรวจทานและส่ง', fields: ['urgentFlag', 'notes'] }
+];
+
+/** The step that shows a field; 'vitals.pulse' belongs to the step listing 'vitals'. */
+export function stepOf(field: string): number {
+  const index = STEPS.findIndex(({ fields }) => fields.some((name) => field === name || field.startsWith(`${name}.`)));
+  return index === -1 ? STEPS.length - 1 : index;
+}
+
+function StepHeader({ step, reached, done, onJump }: { step: number; reached: number; done: Set<number>; onJump: (index: number) => void }) {
+  const percent = Math.round((done.size / STEPS.length) * 100);
+  return <div className="sticky top-28 z-30 -mx-4 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
+    <div className="flex items-baseline justify-between gap-2"><p className="font-bold">ขั้นตอนที่ {step + 1}/{STEPS.length}: {STEPS[step]!.title}</p><p className="whitespace-nowrap text-sm text-slate-600">เสร็จแล้ว {percent}%</p></div>
+    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label="ความคืบหน้าของแบบบันทึก">
+      <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${percent}%` }}/>
+    </div>
+    <ol className="mt-3 flex gap-1">{STEPS.map(({ title }, index) => {
+      const current = index === step;
+      const complete = done.has(index) && !current;
+      return <li key={title} className="flex-1">
+        <button type="button" onClick={() => onJump(index)} disabled={index > reached} aria-current={current ? 'step' : undefined} aria-label={`ขั้นตอนที่ ${index + 1} ${title}`}
+          className={`flex w-full flex-col items-center gap-1 rounded-lg py-1 text-xs disabled:cursor-not-allowed ${current ? 'font-bold text-primary' : 'text-slate-600'}`}>
+          <span className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-bold ${current ? 'border-primary bg-primary text-white' : complete ? 'border-success bg-success text-white' : index <= reached ? 'border-primary bg-white text-primary' : 'border-slate-300 bg-white text-slate-400'}`}>{complete ? '✓' : index + 1}</span>
+          <span className="hidden text-center leading-tight lg:block">{title}</span>
+        </button>
+      </li>;
+    })}</ol>
+  </div>;
+}
+
+interface SummaryItem { step: number; label: string; value: string; alert?: boolean }
+
+function ReviewSummary({ items, images, onEdit }: { items: SummaryItem[]; images: Images; onEdit: (step: number) => void }) {
+  return <Card>
+    <h3 className="text-lg font-bold">สรุปก่อนส่ง</h3>
+    <dl className="mt-3 divide-y divide-slate-100">{items.map((item) => <div key={item.label} className="flex items-start justify-between gap-3 py-2">
+      <div><dt className="text-sm text-slate-500">{item.label}</dt><dd className={`font-semibold ${item.alert ? 'text-danger' : ''}`}>{item.value}</dd></div>
+      <button type="button" onClick={() => onEdit(item.step)} className="shrink-0 text-sm text-primary underline">แก้ไข</button>
+    </div>)}</dl>
+    <div className="mt-3 grid grid-cols-3 gap-2">{([['OLDER', 'ผู้สูงอายุ'], ['SERVICE', 'กิจกรรม'], ['SIGNATURE', 'ลายมือชื่อ']] as const).map(([kind, label]) => <figure key={kind} className="rounded-lg border border-slate-200 p-1 text-center">
+      {images[kind] ? <img src={images[kind]!.image.dataUrl} alt={label} className="h-20 w-full rounded object-contain"/> : <div className="flex h-20 items-center justify-center text-xs text-danger">ยังไม่มี</div>}
+      <figcaption className="text-xs text-slate-600">{label}</figcaption>
+    </figure>)}</div>
+    <button type="button" onClick={() => onEdit(5)} className="mt-2 text-sm text-primary underline">แก้ไขภาพหรือลายมือชื่อ</button>
+  </Card>;
+}
+
 export function VisitRecordForm() {
   const { id: visitId = '' } = useParams();
   const navigate = useNavigate();
@@ -165,7 +219,12 @@ export function VisitRecordForm() {
     };
   }, [form, images, visitId, screenPositive, show8q]);
 
-  const validate = (): boolean => {
+  const [step, setStep] = useState(0);
+  const [reached, setReached] = useState(0);
+  const [done, setDone] = useState<Set<number>>(() => new Set());
+
+  /** Every problem in the whole form, keyed by field. */
+  const findErrors = (): Record<string, string> => {
     const result = visitRecordSubmitSchema.safeParse(payload);
     const found: Record<string, string> = {};
     if (!result.success) {
@@ -176,15 +235,57 @@ export function VisitRecordForm() {
     }
     if (form.bloodPressure.trim() && !parseBloodPressure(form.bloodPressure)) found['vitals.systolic'] = 'รูปแบบ เช่น 110/86';
     if (form.visitDate > todayInBangkok()) found.visitDate = 'วันที่เยี่ยมต้องไม่เกินวันนี้';
+    return found;
+  };
+
+  const showProblems = (found: Record<string, string>) => {
     setErrors(found);
     const first = Object.keys(found)[0];
-    if (first) {
-      document.querySelector(`[data-field="${first}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const names = [...new Set(Object.keys(found).map((field) => FIELD_LABELS[field] ?? field))];
-      void Swal.fire({ icon: 'warning', title: 'ข้อมูลยังไม่ครบหรือไม่ถูกต้อง', html: `กรุณาตรวจสอบ: <b>${names.slice(0, 8).join(', ')}${names.length > 8 ? ' และอื่น ๆ' : ''}</b>`, confirmButtonText: 'ตกลง', confirmButtonColor: '#0284C7' });
-    }
-    return !first;
+    if (!first) return;
+    setTimeout(() => document.querySelector(`[data-field="${first}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+    const names = [...new Set(Object.keys(found).map((field) => FIELD_LABELS[field] ?? field))];
+    void Swal.fire({ icon: 'warning', title: 'ข้อมูลยังไม่ครบหรือไม่ถูกต้อง', html: `กรุณาตรวจสอบ: <b>${names.slice(0, 8).join(', ')}${names.length > 8 ? ' และอื่น ๆ' : ''}</b>`, confirmButtonText: 'ตกลง', confirmButtonColor: '#0284C7' });
   };
+
+  const errorsIn = (found: Record<string, string>, index: number) => Object.fromEntries(Object.entries(found).filter(([field]) => stepOf(field) === index));
+
+  const goTo = (index: number) => {
+    setStep(index);
+    setReached((current) => Math.max(current, index));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  /** Moving forward checks only the current step; going back never blocks. */
+  const next = () => {
+    const mine = errorsIn(findErrors(), step);
+    if (Object.keys(mine).length) { showProblems(mine); return; }
+    setErrors({});
+    setDone((current) => new Set(current).add(step));
+    goTo(step + 1);
+  };
+  const back = () => { setErrors({}); goTo(Math.max(0, step - 1)); };
+  const jump = (index: number) => { if (index <= reached) { setErrors({}); goTo(index); } };
+
+  /** Before sending, check everything and open the first step that still has a problem. */
+  const validate = (): boolean => {
+    const found = findErrors();
+    const steps = Object.keys(found).map(stepOf);
+    if (!steps.length) return true;
+    const target = Math.min(...steps);
+    goTo(target);
+    showProblems(errorsIn(found, target));
+    return false;
+  };
+
+  const summaryItems: SummaryItem[] = [
+    { step: 0, label: 'วันที่และเวลาเยี่ยม', value: `${formatThaiDate(form.visitDate)} ${form.startTime || '–'}–${form.endTime || '–'} น.` },
+    { step: 0, label: 'ผู้ดูแล', value: form.caregiverName ? `${form.caregiverName} (${form.caregiverRelation || '–'}) ${form.caregiverPhone}` : '–' },
+    { step: 1, label: 'ดัชนีมวลกาย', value: bmi === null ? '–' : `${bmi} (${interpretBmi(bmi)})` },
+    { step: 1, label: 'สัญญาณชีพ', value: `T ${form.temperature || '–'} · P ${form.pulse || '–'} · R ${form.respiration || '–'} · BP ${form.bloodPressure || '–'}` },
+    { step: 2, label: 'คะแนน ADL', value: adlTotal === null ? '–' : `${adlTotal}/20` },
+    { step: 3, label: 'สุขภาพจิต', value: !screenDone ? '–' : !screenPositive ? '2Q ปกติ' : `9Q ${q9Score ?? '–'}${q9Score === null ? '' : ` (${interpretQ9(q9Score)})`}${show8q ? ` · 8Q ${q8Score ?? '–'}${q8Score === null ? '' : ` (${interpretQ8(q8Score)})`}` : ''}`, alert: riskVisible },
+    { step: 4, label: 'กิจกรรมการดูแล', value: `${form.dailyCare.length + form.basicHealth.length + form.otherCare.length} รายการ` }
+  ];
 
   const pickImage = async (kind: ImageKind, file: File) => {
     try {
@@ -236,124 +337,148 @@ export function VisitRecordForm() {
   const info = context.data!;
   const e = errors;
 
-  return <div className="mx-auto max-w-4xl space-y-4 pb-8">
-    <div><h2 className="text-2xl font-bold">บันทึกการเยี่ยมบ้าน</h2><p className="text-slate-600">กรอกตามที่ประเมินจริง ช่องที่มี * ต้องกรอก</p></div>
+  return <div className="mx-auto max-w-4xl space-y-4 pb-32 md:pb-24">
+    <div><h2 className="text-2xl font-bold">บันทึกการเยี่ยมบ้าน</h2><p className="text-slate-600">กรอกทีละขั้นตอน ช่องที่มี * ต้องกรอก</p></div>
 
     <Card className="border-sky-200 bg-sky-50">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="sm:col-span-2"><p className="text-sm text-slate-600">ผู้รับบริการ</p><p className="text-xl font-bold">{info.patientName}</p><p className="text-sm text-slate-600">{info.visitType || 'เยี่ยมตาม Care Plan'}</p></div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="col-span-2"><p className="text-sm text-slate-600">ผู้รับบริการ</p><p className="text-xl font-bold">{info.patientName}</p><p className="text-sm text-slate-600">{info.visitType || 'เยี่ยมตาม Care Plan'}</p></div>
         <Result label="ครั้งที่เยี่ยม" value={`ครั้งที่ ${info.visitNumber}`} tone="success"/>
         <Result label="ผู้เยี่ยม" value={info.visitorName}/>
       </div>
     </Card>
 
-    <Section number={0} title="ข้อมูลการเยี่ยม">
-      <div className="grid gap-3 md:grid-cols-3">
-        <div data-field="visitDate"><p className={labelClass}>วันที่เยี่ยม *</p>
-          <div className="mt-1 flex min-h-11 items-center gap-2"><span className="rounded-xl border border-slate-300 bg-white px-3 py-2 font-semibold">{formatThaiDate(form.visitDate)}</span>
-            <button type="button" onClick={() => setChangingDate((value) => !value)} className="text-sm text-primary underline">เปลี่ยนวันที่</button></div>
-          {changingDate && <input type="date" max={todayInBangkok()} value={form.visitDate} onChange={(event) => event.target.value && set('visitDate', event.target.value)} className={fieldClass}/>}
-          <FieldError message={e.visitDate}/></div>
-        <label className={labelClass} data-field="startTime">เวลาเยี่ยม *<input type="time" value={form.startTime} onChange={(event) => set('startTime', event.target.value)} className={fieldClass}/><FieldError message={e.startTime}/></label>
-        <label className={labelClass} data-field="endTime">เวลาสิ้นสุด *<div className="flex gap-2"><input type="time" value={form.endTime} onChange={(event) => set('endTime', event.target.value)} className={fieldClass}/><button type="button" onClick={() => set('endTime', nowTime())} className="mt-1 whitespace-nowrap rounded-lg border border-slate-300 px-3 text-sm">ตอนนี้</button></div><FieldError message={e.endTime}/></label>
-        <label className={labelClass} data-field="caregiverName">ชื่อผู้ดูแล *<span className={hintClass}>ญาติหรือผู้ดูแลหลักที่บ้าน</span><input value={form.caregiverName} onChange={(event) => set('caregiverName', event.target.value)} className={fieldClass}/><FieldError message={e.caregiverName}/></label>
-        <label className={labelClass} data-field="caregiverRelation">ความสัมพันธ์ *<span className={hintClass}>กับผู้สูงอายุ</span><select value={form.caregiverRelation} onChange={(event) => set('caregiverRelation', event.target.value)} className={fieldClass}><option value="">เลือก</option>{RELATIONS.map((relation) => <option key={relation}>{relation}</option>)}</select><FieldError message={e.caregiverRelation}/></label>
-        <label className={labelClass} data-field="caregiverPhone">เบอร์ติดต่อ *<span className={hintClass}>ตัวเลขเท่านั้น 9–10 หลัก</span><input inputMode="numeric" maxLength={10} value={form.caregiverPhone} onChange={(event) => set('caregiverPhone', event.target.value.replace(/\D/g, ''))} placeholder="0812345678" className={fieldClass}/><FieldError message={e.caregiverPhone}/></label>
+    <StepHeader step={step} reached={reached} done={done} onJump={jump}/>
+
+    {step === 0 && <>
+      <Section number={0} title="ข้อมูลการเยี่ยม">
+        <div className="grid gap-3 md:grid-cols-3">
+          <div data-field="visitDate"><p className={labelClass}>วันที่เยี่ยม *</p>
+            <div className="mt-1 flex min-h-11 items-center gap-2"><span className="rounded-xl border border-slate-300 bg-white px-3 py-2 font-semibold">{formatThaiDate(form.visitDate)}</span>
+              <button type="button" onClick={() => setChangingDate((value) => !value)} className="text-sm text-primary underline">เปลี่ยนวันที่</button></div>
+            {changingDate && <input type="date" max={todayInBangkok()} value={form.visitDate} onChange={(event) => event.target.value && set('visitDate', event.target.value)} className={fieldClass}/>}
+            <FieldError message={e.visitDate}/></div>
+          <label className={labelClass} data-field="startTime">เวลาเยี่ยม *<input type="time" value={form.startTime} onChange={(event) => set('startTime', event.target.value)} className={fieldClass}/><FieldError message={e.startTime}/></label>
+          <label className={labelClass} data-field="endTime">เวลาสิ้นสุด *<div className="flex gap-2"><input type="time" value={form.endTime} onChange={(event) => set('endTime', event.target.value)} className={fieldClass}/><button type="button" onClick={() => set('endTime', nowTime())} className="mt-1 whitespace-nowrap rounded-lg border border-slate-300 px-3 text-sm">ตอนนี้</button></div><FieldError message={e.endTime}/></label>
+          <label className={labelClass} data-field="caregiverName">ชื่อผู้ดูแล *<span className={hintClass}>ญาติหรือผู้ดูแลหลักที่บ้าน</span><input value={form.caregiverName} onChange={(event) => set('caregiverName', event.target.value)} className={fieldClass}/><FieldError message={e.caregiverName}/></label>
+          <label className={labelClass} data-field="caregiverRelation">ความสัมพันธ์ *<span className={hintClass}>กับผู้สูงอายุ</span><select value={form.caregiverRelation} onChange={(event) => set('caregiverRelation', event.target.value)} className={fieldClass}><option value="">เลือก</option>{RELATIONS.map((relation) => <option key={relation}>{relation}</option>)}</select><FieldError message={e.caregiverRelation}/></label>
+          <label className={labelClass} data-field="caregiverPhone">เบอร์ติดต่อ *<span className={hintClass}>ตัวเลขเท่านั้น 9–10 หลัก</span><input inputMode="numeric" maxLength={10} value={form.caregiverPhone} onChange={(event) => set('caregiverPhone', event.target.value.replace(/\D/g, ''))} placeholder="0812345678" className={fieldClass}/><FieldError message={e.caregiverPhone}/></label>
+        </div>
+      </Section>
+    </>}
+    {step === 1 && <>
+      <Section number={1} title="การประเมินสุขภาพแรกรับ">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className={labelClass} data-field="weightKg">น้ำหนัก (กก.) *<input type="number" inputMode="decimal" step="0.1" value={form.weightKg} onChange={(event) => set('weightKg', event.target.value)} className={fieldClass}/><FieldError message={e.weightKg}/></label>
+          <label className={labelClass} data-field="heightCm">ส่วนสูง (ซม.) *<input type="number" inputMode="decimal" step="0.1" value={form.heightCm} onChange={(event) => set('heightCm', event.target.value)} className={fieldClass}/><FieldError message={e.heightCm}/></label>
+          <Result label="ดัชนีมวลกาย (กก./ม²)" value={bmi === null ? '–' : String(bmi)}/>
+          <Result label="แปลผล" value={bmi === null ? '–' : interpretBmi(bmi)} tone={bmi === null ? 'neutral' : interpretBmi(bmi) === 'ปกติ' ? 'success' : 'warning'}/>
+        </div>
+      </Section>
+
+      <Section number={2} title="การประเมินสัญญาณชีพ">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className={labelClass} data-field="vitals.temperature">อุณหภูมิ (°C) *<span className={hintClass}>ปกติ 35.5–37.4</span><input type="number" inputMode="decimal" step="0.1" value={form.temperature} onChange={(event) => set('temperature', event.target.value)} className={fieldClass}/><FieldError message={e['vitals.temperature']}/></label>
+          <label className={labelClass} data-field="vitals.pulse">ชีพจร (ครั้ง/นาที) *<span className={hintClass}>ปกติ 60–100</span><input type="number" inputMode="numeric" value={form.pulse} onChange={(event) => set('pulse', event.target.value)} className={fieldClass}/><FieldError message={e['vitals.pulse']}/></label>
+          <label className={labelClass} data-field="vitals.respiration">การหายใจ (ครั้ง/นาที) *<span className={hintClass}>ปกติ 12–20</span><input type="number" inputMode="numeric" value={form.respiration} onChange={(event) => set('respiration', event.target.value)} className={fieldClass}/><FieldError message={e['vitals.respiration']}/></label>
+          <label className={labelClass} data-field="vitals.systolic">ความดันโลหิต (mmHg) *<span className={hintClass}>เช่น 110/86</span><input inputMode="numeric" value={form.bloodPressure} onChange={(event) => set('bloodPressure', event.target.value.replace(/[^\d/]/g, ''))} placeholder="110/86" className={fieldClass}/><FieldError message={e['vitals.systolic'] ?? e['vitals.diastolic']}/></label>
+        </div>
+      </Section>
+
+    </>}
+    {step === 2 && <>
+      <Section number={3} title="การประเมิน ADL (Barthel 10 ข้อ)" hint="เลือกระดับที่ผู้สูงอายุทำได้จริงในปัจจุบัน">
+        <div className="space-y-3" data-field="adl">{ADL_ITEMS.map(({ key, title, hint, levels }) => <fieldset key={key} className="rounded-xl border border-slate-200 p-3">
+          <legend className="px-1 font-semibold">{title}{hint && <span className="ml-1 text-sm font-normal text-slate-500">({hint})</span>}</legend>
+          <div className="space-y-2">{levels.map((text, score) => <label key={score} className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border p-2 ${form.adl[key] === score ? 'border-primary bg-sky-50' : 'border-slate-200'}`}>
+            <input type="radio" name={`adl-${key}`} checked={form.adl[key] === score} onChange={() => set('adl', { ...form.adl, [key]: score })} className="mt-1 h-5 w-5"/>
+            <span className="flex-1">{text}</span><span className="whitespace-nowrap font-bold text-primary">{score} คะแนน</span>
+          </label>)}</div>
+        </fieldset>)}</div>
+        <FieldError message={e.adl}/>
+        <div className="sticky bottom-20 mt-3 flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 shadow-sm md:bottom-4"><span className="font-bold">คะแนน ADL รวม <span className="text-sm font-normal text-slate-600">(ตอบแล้ว {ADL_ITEMS.filter(({ key }) => typeof form.adl[key] === 'number').length}/10)</span></span><span className="text-2xl font-bold text-primary">{adlTotal ?? '–'}/20</span></div>
+      </Section>
+
+    </>}
+    {step === 3 && <>
+      <Section number={4} title="การประเมินสุขภาพจิต" hint="คัดกรองโรคซึมเศร้าด้วย 2 คำถาม (2Q) ถ้าตอบ “มี” ข้อใดข้อหนึ่ง ให้ประเมินต่อด้วย 9Q">
+        <div className="space-y-3" data-field="q2">{Q2_QUESTIONS.map((question, index) => <div key={question}><p className="mb-2">{index + 1}. {question}</p><YesNo name={`q2-${index}`} value={form.q2[index] ?? null} onChange={(value) => setAt('q2', index, value)}/></div>)}</div>
+        <FieldError message={e.q2}/>
+        {screenDone && !screenPositive && <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-emerald-800">ผลคัดกรอง 2Q ปกติ ไม่ต้องประเมิน 9Q</p>}
+
+        {screenPositive && <div className="mt-4 rounded-xl border border-amber-200 p-3" data-field="q9">
+          <p className="font-bold">แบบประเมินโรคซึมเศร้า 9 คำถาม (9Q)</p>
+          <p className="text-sm text-slate-600">ในช่วง 2 สัปดาห์ที่ผ่านมารวมทั้งวันนี้ ท่านมีอาการเหล่านี้บ่อยแค่ไหน</p>
+          <div className="mt-3 space-y-3">{Q9_QUESTIONS.map((question, index) => <div key={question}><p className="mb-1">{index + 1}. {question}</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{Q9_FREQUENCIES.map((label, score) => <label key={label} className={`flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border px-2 text-sm ${form.q9[index] === score ? 'border-primary bg-sky-50 font-semibold' : 'border-slate-300'}`}>
+              <input type="radio" name={`q9-${index}`} checked={form.q9[index] === score} onChange={() => setAt('q9', index, score)} className="h-4 w-4"/>{label} ({score})
+            </label>)}</div></div>)}</div>
+          <FieldError message={e.q9}/>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2"><Result label="คะแนน 9Q" value={q9Score === null ? `– (ตอบแล้ว ${form.q9.filter((answer) => answer !== null).length}/9)` : String(q9Score)}/><Result label="แปลผล" value={q9Score === null ? '–' : interpretQ9(q9Score)} tone={q9Score === null ? 'neutral' : q9Score <= 6 ? 'success' : q9Score <= 12 ? 'warning' : 'danger'}/></div>
+          {q9Score !== null && !show8q && <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-emerald-800">คะแนน 9Q น้อยกว่า 7 ไม่ต้องประเมิน 8Q</p>}
+        </div>}
+
+        {show8q && <div className="mt-4 rounded-xl border border-red-200 p-3" data-field="q8">
+          <p className="font-bold">แบบประเมินการฆ่าตัวตาย (8Q)</p>
+          <div className="mt-3 space-y-3">{Q8_QUESTIONS.map((question, index) => <div key={question.text}>
+            {'period' in question && <p className="mb-1 text-sm font-semibold text-slate-600">{question.period}</p>}
+            <p className="mb-1">{index + 1}. {question.text} <span className="text-sm text-slate-500">(มี = {question.score})</span></p>
+            <YesNo name={`q8-${index}`} value={form.q8[index] ?? null} onChange={(value) => setAt('q8', index, value)}/>
+            {index === 2 && form.q8[2] === true && <div className="ml-4 mt-2 border-l-4 border-red-200 pl-3" data-field="q8.canControl"><p className="mb-1 text-sm">{Q8_FOLLOW_UP.text} <span className="text-slate-500">(ไม่ได้ = {Q8_FOLLOW_UP.scoreIfCannot})</span></p>
+              <YesNo name="q8-control" value={form.canControl === null ? null : !form.canControl} onChange={(cannot) => set('canControl', !cannot)} yes="ไม่ได้" no="ได้"/><FieldError message={e['q8.canControl']}/></div>}
+          </div>)}</div>
+          <FieldError message={e.q8}/>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2"><Result label="คะแนน 8Q" value={q8Score === null ? '–' : String(q8Score)}/><Result label="แปลผล" value={q8Score === null ? '–' : interpretQ8(q8Score)} tone={q8Score === null ? 'neutral' : q8Score === 0 ? 'success' : q8Score <= 8 ? 'warning' : 'danger'}/></div>
+        </div>}
+
+        {riskVisible && <div role="alert" className="mt-4 rounded-xl bg-red-50 p-3 font-semibold text-red-800">พบความเสี่ยงด้านสุขภาพจิต ระบบจะแจ้ง CM เมื่อส่งบันทึก หากมีความเสี่ยงทันที อย่าปล่อยผู้สูงอายุอยู่ลำพัง โทรสายด่วนสุขภาพจิต 1323 หรือฉุกเฉิน 1669</div>}
+      </Section>
+
+    </>}
+    {step === 4 && <>
+      <Section number={5} title="กิจกรรมการดูแลด้านการช่วยเหลือประจำวัน" hint="เลือกได้หลายรายการ"><Checklist items={DAILY_CARE_ACTIVITIES} selected={form.dailyCare} onChange={(next) => set('dailyCare', next)}/></Section>
+      <Section number={6} title="กิจกรรมการดูแลด้านสุขภาพพื้นฐาน" hint="เลือกได้หลายรายการ"><Checklist items={BASIC_HEALTH_ACTIVITIES} selected={form.basicHealth} onChange={(next) => set('basicHealth', next)}/></Section>
+      <Section number={7} title="กิจกรรมการดูแลด้านอื่น ๆ" hint="เลือกได้หลายรายการ"><Checklist items={OTHER_CARE_ACTIVITIES} selected={form.otherCare} onChange={(next) => set('otherCare', next)}/></Section>
+    </>}
+    {step === 5 && <>
+      <Section number={8} title="ภาพประกอบ" hint="ระบบย่อภาพก่อนอัปโหลด ข้อมูล DEMO เท่านั้น ห้ามใช้ภาพบุคคลจริง">
+        <div className="grid gap-3 md:grid-cols-2">
+          <div data-field="olderImageId"><ImagePicker label="ภาพผู้สูงอายุ *" slot={images.OLDER} disabled={busy} onPick={(file) => pickImage('OLDER', file)}/><FieldError message={e.olderImageId && 'กรุณาเลือกภาพ'}/></div>
+          <div data-field="serviceImageId"><ImagePicker label="ภาพกิจกรรมการดูแล *" slot={images.SERVICE} disabled={busy} onPick={(file) => pickImage('SERVICE', file)}/><FieldError message={e.serviceImageId && 'กรุณาเลือกภาพ'}/></div>
+        </div>
+      </Section>
+
+      <Section number={9} title="ลายมือชื่อ *" hint="ผู้สูงอายุหรือผู้ดูแลลงชื่อรับบริการ">
+        <div data-field="signatureImageId">
+          {images.SIGNATURE
+            ? <div><img src={images.SIGNATURE.image.dataUrl} alt="ลายมือชื่อที่เซ็นไว้" className="h-44 w-full rounded-xl border border-slate-200 bg-white object-contain"/>
+                <button type="button" disabled={busy || Boolean(images.SIGNATURE.imageId)} onClick={() => setImages((current) => { const next = { ...current }; delete next.SIGNATURE; return next; })} className="mt-2 min-h-10 rounded-lg border border-slate-300 px-3 text-sm hover:bg-slate-50 disabled:opacity-50">เซ็นใหม่</button></div>
+            : <SignaturePad disabled={busy} onChange={(image) => setImages((current) => { const next = { ...current }; if (image) next.SIGNATURE = { image, progress: 0 }; else delete next.SIGNATURE; return next; })}/>}
+          {images.SIGNATURE && <UploadProgress slot={images.SIGNATURE}/>}
+          <FieldError message={e.signatureImageId && 'กรุณาลงลายมือชื่อ'}/>
+        </div>
+      </Section>
+    </>}
+    {step === 6 && <>
+      <Card>
+        <div data-field="urgentFlag"><p className="font-bold">เรื่องเร่งด่วน *</p>
+          <div className="mt-2"><YesNo name="urgent" value={form.urgent} onChange={(value) => set('urgent', value)} yes="มีเรื่องที่ CM ควรรู้โดยเร็ว" no="ไม่มีเรื่องเร่งด่วน"/></div>
+          <FieldError message={e.urgentFlag}/>
+          <p className="mt-2 text-sm text-slate-500">เช่น มีไข้ ซึมลง กินไม่ได้ หกล้ม มีแผลใหม่ ญาติดูแลต่อไม่ได้ — ระบบจะแจ้งเตือน CM ทันทีที่ส่ง</p>
+          <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm font-semibold text-red-800">ภาวะฉุกเฉิน เช่น หมดสติ หายใจลำบาก เจ็บหน้าอก ชัก ให้โทร 1669 ทันที ไม่ต้องรอระบบ</p>
+        </div>
+        <label className={`${labelClass} mt-4`}>บันทึกเพิ่มเติม<textarea value={form.notes} maxLength={1500} onChange={(event) => set('notes', event.target.value)} className={fieldClass}/></label>
+      </Card>
+      <ReviewSummary items={summaryItems} images={images} onEdit={jump}/>
+    </>}
+
+    <nav aria-label="เลื่อนขั้นตอน" className="fixed inset-x-0 bottom-16 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:bottom-0 md:left-64">
+      <div className="mx-auto flex max-w-4xl gap-3">
+        <button type="button" onClick={back} disabled={step === 0 || busy} className="min-h-12 flex-1 rounded-xl border border-slate-300 font-semibold disabled:opacity-40">ย้อนกลับ</button>
+        {step < STEPS.length - 1
+          ? <button type="button" onClick={next} className="min-h-12 flex-[2] rounded-xl bg-primary px-2 font-bold text-white hover:bg-sky-700">ถัดไป<span className="hidden sm:inline">: {STEPS[step + 1]!.title}</span></button>
+          : <button type="button" onClick={submit} disabled={busy} className="min-h-12 flex-[2] rounded-xl bg-success font-bold text-white disabled:opacity-60">{busy ? 'กำลังส่ง…' : 'ส่งบันทึกการเยี่ยม'}</button>}
       </div>
-    </Section>
-
-    <Section number={1} title="การประเมินสุขภาพแรกรับ">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className={labelClass} data-field="weightKg">น้ำหนัก (กก.) *<input type="number" inputMode="decimal" step="0.1" value={form.weightKg} onChange={(event) => set('weightKg', event.target.value)} className={fieldClass}/><FieldError message={e.weightKg}/></label>
-        <label className={labelClass} data-field="heightCm">ส่วนสูง (ซม.) *<input type="number" inputMode="decimal" step="0.1" value={form.heightCm} onChange={(event) => set('heightCm', event.target.value)} className={fieldClass}/><FieldError message={e.heightCm}/></label>
-        <Result label="ดัชนีมวลกาย (กก./ม²)" value={bmi === null ? '–' : String(bmi)}/>
-        <Result label="แปลผล" value={bmi === null ? '–' : interpretBmi(bmi)} tone={bmi === null ? 'neutral' : interpretBmi(bmi) === 'ปกติ' ? 'success' : 'warning'}/>
-      </div>
-    </Section>
-
-    <Section number={2} title="การประเมินสัญญาณชีพ">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <label className={labelClass} data-field="vitals.temperature">อุณหภูมิ (°C) *<span className={hintClass}>ปกติ 35.5–37.4</span><input type="number" inputMode="decimal" step="0.1" value={form.temperature} onChange={(event) => set('temperature', event.target.value)} className={fieldClass}/><FieldError message={e['vitals.temperature']}/></label>
-        <label className={labelClass} data-field="vitals.pulse">ชีพจร (ครั้ง/นาที) *<span className={hintClass}>ปกติ 60–100</span><input type="number" inputMode="numeric" value={form.pulse} onChange={(event) => set('pulse', event.target.value)} className={fieldClass}/><FieldError message={e['vitals.pulse']}/></label>
-        <label className={labelClass} data-field="vitals.respiration">การหายใจ (ครั้ง/นาที) *<span className={hintClass}>ปกติ 12–20</span><input type="number" inputMode="numeric" value={form.respiration} onChange={(event) => set('respiration', event.target.value)} className={fieldClass}/><FieldError message={e['vitals.respiration']}/></label>
-        <label className={labelClass} data-field="vitals.systolic">ความดันโลหิต (mmHg) *<span className={hintClass}>เช่น 110/86</span><input inputMode="numeric" value={form.bloodPressure} onChange={(event) => set('bloodPressure', event.target.value.replace(/[^\d/]/g, ''))} placeholder="110/86" className={fieldClass}/><FieldError message={e['vitals.systolic'] ?? e['vitals.diastolic']}/></label>
-      </div>
-    </Section>
-
-    <Section number={3} title="การประเมิน ADL (Barthel 10 ข้อ)" hint="เลือกระดับที่ผู้สูงอายุทำได้จริงในปัจจุบัน">
-      <div className="space-y-3" data-field="adl">{ADL_ITEMS.map(({ key, title, hint, levels }) => <fieldset key={key} className="rounded-xl border border-slate-200 p-3">
-        <legend className="px-1 font-semibold">{title}{hint && <span className="ml-1 text-sm font-normal text-slate-500">({hint})</span>}</legend>
-        <div className="space-y-2">{levels.map((text, score) => <label key={score} className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border p-2 ${form.adl[key] === score ? 'border-primary bg-sky-50' : 'border-slate-200'}`}>
-          <input type="radio" name={`adl-${key}`} checked={form.adl[key] === score} onChange={() => set('adl', { ...form.adl, [key]: score })} className="mt-1 h-5 w-5"/>
-          <span className="flex-1">{text}</span><span className="whitespace-nowrap font-bold text-primary">{score} คะแนน</span>
-        </label>)}</div>
-      </fieldset>)}</div>
-      <FieldError message={e.adl}/>
-      <div className="sticky bottom-20 mt-3 flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 shadow-sm md:bottom-4"><span className="font-bold">คะแนน ADL รวม <span className="text-sm font-normal text-slate-600">(ตอบแล้ว {ADL_ITEMS.filter(({ key }) => typeof form.adl[key] === 'number').length}/10)</span></span><span className="text-2xl font-bold text-primary">{adlTotal ?? '–'}/20</span></div>
-    </Section>
-
-    <Section number={4} title="การประเมินสุขภาพจิต" hint="คัดกรองโรคซึมเศร้าด้วย 2 คำถาม (2Q) ถ้าตอบ “มี” ข้อใดข้อหนึ่ง ให้ประเมินต่อด้วย 9Q">
-      <div className="space-y-3" data-field="q2">{Q2_QUESTIONS.map((question, index) => <div key={question}><p className="mb-2">{index + 1}. {question}</p><YesNo name={`q2-${index}`} value={form.q2[index] ?? null} onChange={(value) => setAt('q2', index, value)}/></div>)}</div>
-      <FieldError message={e.q2}/>
-      {screenDone && !screenPositive && <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-emerald-800">ผลคัดกรอง 2Q ปกติ ไม่ต้องประเมิน 9Q</p>}
-
-      {screenPositive && <div className="mt-4 rounded-xl border border-amber-200 p-3" data-field="q9">
-        <p className="font-bold">แบบประเมินโรคซึมเศร้า 9 คำถาม (9Q)</p>
-        <p className="text-sm text-slate-600">ในช่วง 2 สัปดาห์ที่ผ่านมารวมทั้งวันนี้ ท่านมีอาการเหล่านี้บ่อยแค่ไหน</p>
-        <div className="mt-3 space-y-3">{Q9_QUESTIONS.map((question, index) => <div key={question}><p className="mb-1">{index + 1}. {question}</p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{Q9_FREQUENCIES.map((label, score) => <label key={label} className={`flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border px-2 text-sm ${form.q9[index] === score ? 'border-primary bg-sky-50 font-semibold' : 'border-slate-300'}`}>
-            <input type="radio" name={`q9-${index}`} checked={form.q9[index] === score} onChange={() => setAt('q9', index, score)} className="h-4 w-4"/>{label} ({score})
-          </label>)}</div></div>)}</div>
-        <FieldError message={e.q9}/>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2"><Result label="คะแนน 9Q" value={q9Score === null ? `– (ตอบแล้ว ${form.q9.filter((answer) => answer !== null).length}/9)` : String(q9Score)}/><Result label="แปลผล" value={q9Score === null ? '–' : interpretQ9(q9Score)} tone={q9Score === null ? 'neutral' : q9Score <= 6 ? 'success' : q9Score <= 12 ? 'warning' : 'danger'}/></div>
-        {q9Score !== null && !show8q && <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-emerald-800">คะแนน 9Q น้อยกว่า 7 ไม่ต้องประเมิน 8Q</p>}
-      </div>}
-
-      {show8q && <div className="mt-4 rounded-xl border border-red-200 p-3" data-field="q8">
-        <p className="font-bold">แบบประเมินการฆ่าตัวตาย (8Q)</p>
-        <div className="mt-3 space-y-3">{Q8_QUESTIONS.map((question, index) => <div key={question.text}>
-          {'period' in question && <p className="mb-1 text-sm font-semibold text-slate-600">{question.period}</p>}
-          <p className="mb-1">{index + 1}. {question.text} <span className="text-sm text-slate-500">(มี = {question.score})</span></p>
-          <YesNo name={`q8-${index}`} value={form.q8[index] ?? null} onChange={(value) => setAt('q8', index, value)}/>
-          {index === 2 && form.q8[2] === true && <div className="ml-4 mt-2 border-l-4 border-red-200 pl-3" data-field="q8.canControl"><p className="mb-1 text-sm">{Q8_FOLLOW_UP.text} <span className="text-slate-500">(ไม่ได้ = {Q8_FOLLOW_UP.scoreIfCannot})</span></p>
-            <YesNo name="q8-control" value={form.canControl === null ? null : !form.canControl} onChange={(cannot) => set('canControl', !cannot)} yes="ไม่ได้" no="ได้"/><FieldError message={e['q8.canControl']}/></div>}
-        </div>)}</div>
-        <FieldError message={e.q8}/>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2"><Result label="คะแนน 8Q" value={q8Score === null ? '–' : String(q8Score)}/><Result label="แปลผล" value={q8Score === null ? '–' : interpretQ8(q8Score)} tone={q8Score === null ? 'neutral' : q8Score === 0 ? 'success' : q8Score <= 8 ? 'warning' : 'danger'}/></div>
-      </div>}
-
-      {riskVisible && <div role="alert" className="mt-4 rounded-xl bg-red-50 p-3 font-semibold text-red-800">พบความเสี่ยงด้านสุขภาพจิต ระบบจะแจ้ง CM เมื่อส่งบันทึก หากมีความเสี่ยงทันที อย่าปล่อยผู้สูงอายุอยู่ลำพัง โทรสายด่วนสุขภาพจิต 1323 หรือฉุกเฉิน 1669</div>}
-    </Section>
-
-    <Section number={5} title="กิจกรรมการดูแลด้านการช่วยเหลือประจำวัน" hint="เลือกได้หลายรายการ"><Checklist items={DAILY_CARE_ACTIVITIES} selected={form.dailyCare} onChange={(next) => set('dailyCare', next)}/></Section>
-    <Section number={6} title="กิจกรรมการดูแลด้านสุขภาพพื้นฐาน" hint="เลือกได้หลายรายการ"><Checklist items={BASIC_HEALTH_ACTIVITIES} selected={form.basicHealth} onChange={(next) => set('basicHealth', next)}/></Section>
-    <Section number={7} title="กิจกรรมการดูแลด้านอื่น ๆ" hint="เลือกได้หลายรายการ"><Checklist items={OTHER_CARE_ACTIVITIES} selected={form.otherCare} onChange={(next) => set('otherCare', next)}/></Section>
-
-    <Section number={8} title="ภาพประกอบ" hint="ระบบย่อภาพก่อนอัปโหลด ข้อมูล DEMO เท่านั้น ห้ามใช้ภาพบุคคลจริง">
-      <div className="grid gap-3 md:grid-cols-2">
-        <div data-field="olderImageId"><ImagePicker label="ภาพผู้สูงอายุ *" slot={images.OLDER} disabled={busy} onPick={(file) => pickImage('OLDER', file)}/><FieldError message={e.olderImageId && 'กรุณาเลือกภาพ'}/></div>
-        <div data-field="serviceImageId"><ImagePicker label="ภาพกิจกรรมการดูแล *" slot={images.SERVICE} disabled={busy} onPick={(file) => pickImage('SERVICE', file)}/><FieldError message={e.serviceImageId && 'กรุณาเลือกภาพ'}/></div>
-      </div>
-    </Section>
-
-    <Section number={9} title="ลายมือชื่อ *" hint="ผู้สูงอายุหรือผู้ดูแลลงชื่อรับบริการ">
-      <div data-field="signatureImageId">
-        <SignaturePad disabled={busy || Boolean(images.SIGNATURE?.imageId)} onChange={(image) => setImages((current) => { const next = { ...current }; if (image) next.SIGNATURE = { image, progress: 0 }; else delete next.SIGNATURE; return next; })}/>
-        {images.SIGNATURE && <UploadProgress slot={images.SIGNATURE}/>}
-        <FieldError message={e.signatureImageId && 'กรุณาลงลายมือชื่อ'}/>
-      </div>
-    </Section>
-
-    <Card>
-      <div data-field="urgentFlag"><p className="font-bold">เรื่องเร่งด่วน *</p>
-        <div className="mt-2"><YesNo name="urgent" value={form.urgent} onChange={(value) => set('urgent', value)} yes="มีเรื่องที่ CM ควรรู้โดยเร็ว" no="ไม่มีเรื่องเร่งด่วน"/></div>
-        <FieldError message={e.urgentFlag}/>
-        <p className="mt-2 text-sm text-slate-500">เช่น มีไข้ ซึมลง กินไม่ได้ หกล้ม มีแผลใหม่ ญาติดูแลต่อไม่ได้ — ระบบจะแจ้งเตือน CM ทันทีที่ส่ง</p>
-        <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm font-semibold text-red-800">ภาวะฉุกเฉิน เช่น หมดสติ หายใจลำบาก เจ็บหน้าอก ชัก ให้โทร 1669 ทันที ไม่ต้องรอระบบ</p>
-      </div>
-      <label className={`${labelClass} mt-4`}>บันทึกเพิ่มเติม<textarea value={form.notes} maxLength={1500} onChange={(event) => set('notes', event.target.value)} className={fieldClass}/></label>
-    </Card>
-
-    <button type="button" onClick={submit} disabled={busy} className="w-full min-h-14 rounded-2xl bg-primary text-lg font-bold text-white shadow-md hover:bg-sky-700 disabled:opacity-60">{busy ? 'กำลังส่ง…' : 'ตรวจสอบและส่งบันทึก'}</button>
+    </nav>
   </div>;
 }
