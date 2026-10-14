@@ -11,7 +11,7 @@ const call = (req: Request, env: ReturnType<typeof makeEnv>) => worker.fetch(req
 const body = async (response: Response) => response.json() as Promise<{ ok: boolean; code: string; data: unknown }>;
 const json = (value: unknown) => JSON.stringify(value);
 
-const cmActor = { userId: 'usr-cm', role: 'CM', capabilities: ['patients:read', 'patients:write', 'adl:approve', 'classification:confirm', 'carePlan:approve', 'encounter:review', 'export:phi'] };
+const cmActor = { userId: 'usr-cm', role: 'CM', capabilities: ['patients:read', 'patients:write', 'adl:approve', 'classification:confirm', 'carePlan:approve', 'encounter:review', 'export:phi', 'users:manage', 'assignments:manage', 'patients:import'] };
 const cgActor = { userId: 'usr-cg', role: 'CG', capabilities: ['patients:read'] };
 const adminActor = { userId: 'usr-admin', role: 'ADMIN', capabilities: ['users:manage', 'assignments:manage', 'patients:import', 'export:phi'] };
 
@@ -101,11 +101,11 @@ describe('gas proxy surface', () => {
     expect(calls).toEqual([{ action: 'encounter.review', subject: 'usr-cm', payload: { encounterId: 'enc-1', decision: 'VERIFIED', reviewNotes: '', recordVersion: 1 } }]);
   });
 
-  it('encrypts every CID before forwarding an import and lets only admins import', async () => {
+  it('encrypts every CID before forwarding an import and lets only admins and CMs import', async () => {
     const env = makeEnv();
     const row = { line: 2, localCode: 'L-1', hn: 'HN-1', cid: '1100000000001', fullName: 'นางสมมติ ทดสอบ', birthDate: '1942-03-15', sex: 'FEMALE', address: 'บ้าน', village: '', phone: '' };
-    const cmCookie = await loginAs(env, cmActor);
-    const denied = await call(request('/admin/patients/import', { method: 'POST', headers: { cookie: `__Host-ltc_session=${cmCookie}` }, body: json({ rows: [row] }) }), env);
+    const cgCookie = await loginAs(env, cgActor);
+    const denied = await call(request('/admin/patients/import', { method: 'POST', headers: { cookie: `__Host-ltc_session=${cgCookie}` }, body: json({ rows: [row] }) }), env);
     expect(denied.status).toBe(403);
     const cookie = await loginAs(env, adminActor);
     const calls = stubGas(() => ({ created: 1, skipped: [] }));

@@ -25,7 +25,7 @@ describe('caregiver accounts', () => {
     expect(post('caregiver.create', 'usr-admin', { displayName: 'ซ้ำ', username: 'cg.one', password: 'long enough password' })).toMatchObject({ ok: false, code: 'USERNAME_TAKEN' });
   });
 
-  it('is for admins only', () => {
+  it('is not available to caregivers', () => {
     expect(post('caregiver.create', 'usr-cg', { displayName: 'CG ใหม่', username: 'cg.x', password: 'long enough password' })).toMatchObject({ ok: false, code: 'FORBIDDEN' });
   });
 });
