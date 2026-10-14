@@ -1,15 +1,18 @@
-import { Bell, CalendarDays, ClipboardCheck, ClipboardList, Home, LogOut, Users } from 'lucide-react';
+import { Bell, CalendarDays, ClipboardCheck, ClipboardList, FileUp, Home, LogOut, UserCheck, UserPlus, Users } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import type { Actor, Role } from '@smart-ltc/shared';
 import { appHref, appMode, canSwitchDemoRole, getDemoRole, isDemoMode, isStaticPreview, logout, setDemoRole } from '../lib/api';
 
 const allNav = [
   { to: '/', label: 'หน้าหลัก', icon: Home },
-  { to: '/patients', label: 'ผู้รับบริการ', icon: Users },
-  { to: '/visits', label: 'งานเยี่ยม', icon: ClipboardList },
+  { to: '/patients', label: 'ผู้รับบริการ', icon: Users, capability: 'patients:read' },
+  { to: '/visits', label: 'งานเยี่ยม', icon: ClipboardList, capability: 'patients:read' },
   { to: '/reviews', label: 'ตรวจทาน', icon: ClipboardCheck, capability: 'encounter:review' },
-  { to: '/calendar', label: 'ปฏิทิน', icon: CalendarDays },
-  { to: '/alerts', label: 'แจ้งเตือน', icon: Bell }
+  { to: '/admin/assignments', label: 'มอบหมายงาน CG', icon: UserCheck, capability: 'assignments:manage' },
+  { to: '/admin/caregivers', label: 'เพิ่ม CG', icon: UserPlus, capability: 'users:manage' },
+  { to: '/admin/import', label: 'นำเข้าข้อมูล', icon: FileUp, capability: 'patients:import' },
+  { to: '/calendar', label: 'ปฏิทิน', icon: CalendarDays, capability: 'patients:read' },
+  { to: '/alerts', label: 'แจ้งเตือน', icon: Bell, capability: 'patients:read' }
 ] as const;
 
 export function Layout({ actor }: { actor: Actor }) {

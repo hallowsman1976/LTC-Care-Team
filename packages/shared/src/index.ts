@@ -6,3 +6,4 @@ export * from './rbac';
 export * from './actions';
 export * from './routes';
 export * from './visitRecord';
+export * from './admin';

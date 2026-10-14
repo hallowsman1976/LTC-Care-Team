@@ -1,4 +1,4 @@
-import { DEMO_ACTORS, patientCreateSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type ApiEnvelope } from '@smart-ltc/shared';
+import { DEMO_ACTORS, patientCreateSchema, patientImportSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type ApiEnvelope } from '@smart-ltc/shared';
 
 // Backend-free API for the static GitHub Pages preview (VITE_STATIC_PREVIEW=true). It answers from
 // the same synthetic fixtures and validates with the same contracts as the Worker's local demo,
@@ -22,6 +22,13 @@ export function previewRespond(path: string, init: RequestInit | undefined, role
   if (read && method === 'GET') {
     if (read.capability && !actor.capabilities.includes(read.capability)) return reply(403, envelope(false, 'FORBIDDEN', 'ไม่มีสิทธิ์ดำเนินการนี้', null));
     return reply(200, envelope(true, 'OK', '', read.demo(actor)));
+  }
+
+  if (path === '/admin/patients/import' && method === 'POST') {
+    if (!actor.capabilities.includes('patients:import')) return reply(403, envelope(false, 'FORBIDDEN', 'ไม่มีสิทธิ์นำเข้าข้อมูล', null));
+    const input = patientImportSchema.safeParse(parseBody(init));
+    if (!input.success) return reply(400, envelope(false, 'VALIDATION_FAILED', 'ข้อมูลไม่ครบหรือไม่ถูกต้อง', null));
+    return reply(200, envelope(true, 'OK', '', { demo: true, created: input.data.rows.length, skipped: [] }));
   }
 
   const write = WRITE_ROUTES[path];

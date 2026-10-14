@@ -1,4 +1,4 @@
-import { DEMO_ACTORS, patientCreateSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type Capability, type Page } from '@smart-ltc/shared';
+import { DEMO_ACTORS, patientCreateSchema, patientImportSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type Capability, type Page } from '@smart-ltc/shared';
 import type { Env } from './env';
 import { assertOperationalMode, isDemoMode, isLocalDemo, requireSecret } from './env';
 import { isSupportedBrowser } from './browser';
@@ -109,6 +109,22 @@ async function handle(request: Request, env: Env): Promise<Response> {
     const cidLookupHash = await hmacBase64(requireSecret(env, 'CID_LOOKUP_SECRET'), input.cid);
     const { cid: _discarded, ...safeInput } = input;
     return relayGas(await callGas(env, actor.userId, 'patient.create', { ...safeInput, cidCiphertext, cidLookupHash }), requestId);
+  }
+
+  if (path === '/admin/patients/import' && request.method === 'POST') {
+    if (!has(actor, 'patients:import')) return failure(403, 'FORBIDDEN', 'ไม่มีสิทธิ์นำเข้าข้อมูล', requestId);
+    const input = patientImportSchema.parse(await request.json());
+    if (localDemo) return ok({ demo: true, created: input.rows.length, skipped: [] }, requestId);
+    if (!isDemoMode(env) && (!input.legalBasis || !input.privacyNoticeVersion)) {
+      return failure(400, 'LEGAL_BASIS_REQUIRED', 'ต้องระบุฐานกฎหมายและเวอร์ชันประกาศความเป็นส่วนตัว', requestId);
+    }
+    const encryptionKey = requireSecret(env, 'CID_ENCRYPTION_KEY_BASE64');
+    const lookupSecret = requireSecret(env, 'CID_LOOKUP_SECRET');
+    // As with single registration, GAS never sees a CID in clear.
+    const rows = await Promise.all(input.rows.map(async ({ cid, ...row }) => ({
+      ...row, cidCiphertext: await encryptCid(cid, encryptionKey), cidLookupHash: await hmacBase64(lookupSecret, cid)
+    })));
+    return relayGas(await callGas(env, actor.userId, 'patient.import', { ...input, rows }), requestId);
   }
 
   if (path === '/exports/patients.csv' && request.method === 'POST') {

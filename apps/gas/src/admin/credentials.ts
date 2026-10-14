@@ -19,6 +19,13 @@ function randomSaltBase64(): string {
 export function setDemoCredential(userId: string, identifier: string, password: string): { userId: string; identifier: string; iterations: number; elapsedMs: number; revokedCredentials: number } {
   if (getAppMode() !== 'DEMO') throw new Error('DEMO_MODE_REQUIRED');
   if (!getById('Users', 'userId', userId)) throw new Error('USER_NOT_FOUND');
+  const result = storePasswordCredential(userId, identifier, password);
+  audit('editor', 'credential.set', 'User', userId, 'SUCCESS', `DEMO_PASSWORD;REVOKED:${result.revokedCredentials}`);
+  return result;
+}
+
+/** Hashes and stores a password, revoking earlier credentials for the user or the identifier. */
+export function storePasswordCredential(userId: string, identifier: string, password: string): { userId: string; identifier: string; iterations: number; elapsedMs: number; revokedCredentials: number } {
   if (password.length < 12 || password.length > 200) throw new Error('PASSWORD_TOO_SHORT');
   const normalized = identifier.trim().toLowerCase();
   if (!normalized) throw new Error('IDENTIFIER_REQUIRED');
@@ -37,6 +44,5 @@ export function setDemoCredential(userId: string, identifier: string, password: 
     });
     return revoked;
   });
-  audit('editor', 'credential.set', 'User', userId, 'SUCCESS', `DEMO_PASSWORD;REVOKED:${revokedCredentials}`);
   return { userId, identifier: normalized, iterations, elapsedMs, revokedCredentials };
 }

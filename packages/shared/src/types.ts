@@ -2,6 +2,8 @@ export type Role = 'ADMIN' | 'CM' | 'CG';
 
 export type Capability =
   | 'users:manage'
+  | 'assignments:manage'
+  | 'patients:import'
   | 'patients:read'
   | 'patients:write'
   | 'adl:approve'

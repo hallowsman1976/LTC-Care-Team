@@ -3,6 +3,7 @@ import {
   adlCreateSchema, carePlanActivateSchema, carePlanCreateSchema, classificationConfirmSchema,
   encounterReviewSchema, fileUploadSchema, visitSubmitSchema
 } from './actions';
+import { assignmentSetSchema, caregiverCreateSchema } from './admin';
 import { capabilitiesFor } from './rbac';
 import { visitContextSchema, visitImageUploadSchema, visitRecordSubmitSchema } from './visitRecord';
 import type { Actor, Capability, Page } from './types';
@@ -18,6 +19,11 @@ export const DEMO_ACTORS: Record<string, Actor> = {
   cm: { userId: 'usr-demo-cm', role: 'CM', capabilities: capabilitiesFor('CM'), credentialValidUntil: '2099-12-31T00:00:00.000Z' },
   cg: { userId: 'usr-demo-cg', role: 'CG', capabilities: capabilitiesFor('CG') }
 };
+
+const demoCaregivers = [
+  { userId: 'usr-demo-cg', displayName: 'CG ตัวอย่าง', username: 'cg.demo', enabled: true, activePatients: 1 },
+  { userId: 'usr-demo-cg2', displayName: 'CG ตัวอย่าง สอง', username: 'cg.demo2', enabled: true, activePatients: 0 }
+];
 
 const demoPatients = [
   { patientId: 'pt-demo-001', localCode: 'DEMO-001', hn: 'HN-DEMO-001', fullName: 'นายตัวอย่าง หนึ่ง', age: 78, village: 'หมู่ 1', groupNumber: 3, status: 'ACTIVE' },
@@ -42,6 +48,14 @@ export const READ_ROUTES: Record<string, ReadRoute> = {
   '/alerts': {
     action: 'alert.list',
     demo: (actor) => page(actor.role === 'CG' ? [] : [{ alertId: 'al-demo-001', severity: 'HIGH', alertType: 'CG_URGENT_FLAG', eventAt: '2026-10-12T15:30:00+07:00', status: 'OPEN' }])
+  },
+  '/admin/caregivers': { action: 'caregiver.list', capability: 'users:manage', demo: () => page(demoCaregivers) },
+  '/admin/assignments': {
+    action: 'assignment.list', capability: 'assignments:manage',
+    demo: () => page(demoPatients.map((patient, index) => ({
+      patientId: patient.patientId, localCode: patient.localCode, hn: patient.hn, fullName: patient.fullName, village: patient.village,
+      hasActiveEpisode: true, caregiverUserId: index === 0 ? 'usr-demo-cg' : '', caregiverName: index === 0 ? 'CG ตัวอย่าง' : ''
+    })))
   },
   '/reviews': {
     action: 'review.list', capability: 'encounter:review',
@@ -102,6 +116,14 @@ export const WRITE_ROUTES: Record<string, WriteRoute> = {
   '/visit-images': {
     action: 'visitImage.upload', capability: 'patients:read', schema: visitImageUploadSchema,
     demo: () => ({ imageId: uuid(), url: '' })
+  },
+  '/admin/caregivers': {
+    action: 'caregiver.create', capability: 'users:manage', schema: caregiverCreateSchema,
+    demo: (input) => ({ userId: `usr-${uuid()}`, displayName: input.displayName, username: input.username })
+  },
+  '/admin/assignments': {
+    action: 'assignment.set', capability: 'assignments:manage', schema: assignmentSetSchema,
+    demo: (input) => ({ patientId: input.patientId, caregiverUserId: input.caregiverUserId, status: 'ASSIGNED', reassignedVisits: 0 })
   },
   '/visit-records': {
     action: 'visitRecord.submit', capability: 'patients:read', schema: visitRecordSubmitSchema,

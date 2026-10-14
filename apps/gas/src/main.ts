@@ -18,6 +18,7 @@ import { seedDemoData as seedDemo } from './admin/demoData';
 import { runLoadProbe as probe, seedLoadTestData as seedLoad, type LoadTestOptions } from './admin/loadTest';
 import { archiveAuditLogs as archiveAudit, installAuditArchiveTrigger as installArchiveTrigger } from './jobs/auditArchive';
 import { dashboardSummary, listAlerts, listReviews, listVisits } from './services/operations';
+import { createCaregiver, importPatients, listAssignments, listCaregivers, setAssignment } from './services/admin';
 import { submitVisitRecord, uploadVisitImage, visitContext } from './services/visitRecords';
 
 // A 5 MB upload is ~6.7 MB as base64, plus the envelope.
@@ -41,7 +42,12 @@ const ACTIONS: Record<string, Handler> = {
   'file.upload': uploadQuarantinedFile,
   'visit.context': visitContext,
   'visitImage.upload': uploadVisitImage,
-  'visitRecord.submit': submitVisitRecord
+  'visitRecord.submit': submitVisitRecord,
+  'caregiver.list': listCaregivers,
+  'caregiver.create': createCaregiver,
+  'assignment.list': listAssignments,
+  'assignment.set': setAssignment,
+  'patient.import': importPatients
 };
 
 const ANONYMOUS_ACTIONS: Record<string, (payload: Record<string, unknown>) => unknown> = {
