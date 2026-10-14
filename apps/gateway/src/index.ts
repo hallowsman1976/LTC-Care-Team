@@ -1,4 +1,4 @@
-import { caregiverCreateSchema, caregiverGetSchema, caregiverUpdateSchema, DEMO_ACTORS, demoCaregiverDetail, patientCreateSchema, patientImportSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type Capability, type Page } from '@smart-ltc/shared';
+import { caregiverCreateSchema, caregiverGetSchema, caregiverUpdateSchema, DEMO_ACTORS, demoCaregiverDetail, demoPatientDetail, patientCreateSchema, patientGetSchema, patientImportSchema, patientUpdateSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type Capability, type Page } from '@smart-ltc/shared';
 import type { Env } from './env';
 import { assertOperationalMode, isDemoMode, isLocalDemo, requireSecret } from './env';
 import { isSupportedBrowser } from './browser';
@@ -154,6 +154,23 @@ async function handle(request: Request, env: Env): Promise<Response> {
       ...row, cidCiphertext: await encryptCid(cid, encryptionKey), cidLookupHash: await hmacBase64(lookupSecret, cid)
     })));
     return relayGas(await callGas(env, actor.userId, 'patient.import', { ...input, rows }), requestId);
+  }
+
+  if ((path === '/patients/get' || path === '/patients/update') && request.method === 'POST') {
+    if (actor.role !== 'CM' || !has(actor, 'patients:write')) return failure(403, 'FORBIDDEN', 'ไม่มีสิทธิ์แก้ไขผู้รับบริการ', requestId);
+    if (path === '/patients/get') {
+      const input = patientGetSchema.parse(await request.json());
+      if (localDemo) return ok(demoPatientDetail(input.patientId), requestId);
+      const { cidCiphertext, ...patient } = await gasData<Record<string, unknown>>(await callGas(env, actor.userId, 'patient.get', input));
+      // The edit form shows only the last four digits; a full CID never leaves the Worker.
+      const cid = cidCiphertext ? await decryptCid(String(cidCiphertext), requireSecret(env, 'CID_ENCRYPTION_KEY_BASE64')) : '';
+      return ok({ ...patient, cidLast4: cid.slice(-4) }, requestId);
+    }
+    const { cid, ...input } = patientUpdateSchema.parse(await request.json());
+    if (localDemo) return ok({ demo: true, patientId: input.patientId, recordVersion: input.recordVersion + 1, status: input.status, cancelledVisits: 0 }, requestId);
+    const cidCiphertext = cid ? await encryptCid(cid, requireSecret(env, 'CID_ENCRYPTION_KEY_BASE64')) : '';
+    const cidLookupHash = cid ? await hmacBase64(requireSecret(env, 'CID_LOOKUP_SECRET'), cid) : '';
+    return relayGas(await callGas(env, actor.userId, 'patient.update', { ...input, cidCiphertext, cidLookupHash }), requestId);
   }
 
   if (path === '/exports/patients.csv' && request.method === 'POST') {

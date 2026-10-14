@@ -1,4 +1,4 @@
-import { caregiverCreateSchema, caregiverGetSchema, caregiverUpdateSchema, DEMO_ACTORS, demoCaregiverDetail, patientCreateSchema, patientImportSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type ApiEnvelope } from '@smart-ltc/shared';
+import { caregiverCreateSchema, caregiverGetSchema, caregiverUpdateSchema, DEMO_ACTORS, demoCaregiverDetail, demoPatientDetail, patientCreateSchema, patientGetSchema, patientImportSchema, patientUpdateSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type ApiEnvelope } from '@smart-ltc/shared';
 
 // Backend-free API for the static GitHub Pages preview (VITE_STATIC_PREVIEW=true). It answers from
 // the same synthetic fixtures and validates with the same contracts as the Worker's local demo,
@@ -40,6 +40,17 @@ export function previewRespond(path: string, init: RequestInit | undefined, role
     const input = caregiverUpdateSchema.safeParse(parseBody(init));
     if (!input.success) return reply(400, envelope(false, 'VALIDATION_FAILED', 'ข้อมูลไม่ครบหรือไม่ถูกต้อง', null));
     return reply(200, envelope(true, 'OK', '', { demo: true, userId: input.data.userId, recordVersion: input.data.recordVersion + 1 }));
+  }
+
+  if ((path === '/patients/get' || path === '/patients/update') && method === 'POST') {
+    if (actor.role !== 'CM' || !actor.capabilities.includes('patients:write')) return reply(403, envelope(false, 'FORBIDDEN', 'ไม่มีสิทธิ์แก้ไขผู้รับบริการ', null));
+    if (path.endsWith('/get')) {
+      const input = patientGetSchema.safeParse(parseBody(init));
+      return input.success ? reply(200, envelope(true, 'OK', '', demoPatientDetail(input.data.patientId))) : reply(400, envelope(false, 'VALIDATION_FAILED', 'ข้อมูลไม่ครบหรือไม่ถูกต้อง', null));
+    }
+    const input = patientUpdateSchema.safeParse(parseBody(init));
+    if (!input.success) return reply(400, envelope(false, 'VALIDATION_FAILED', 'ข้อมูลไม่ครบหรือไม่ถูกต้อง', null));
+    return reply(200, envelope(true, 'OK', '', { demo: true, patientId: input.data.patientId, recordVersion: input.data.recordVersion + 1, status: input.data.status, cancelledVisits: 0 }));
   }
 
   if (path === '/admin/patients/import' && method === 'POST') {

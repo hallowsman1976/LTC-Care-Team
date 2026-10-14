@@ -66,6 +66,65 @@ describe('patient registration', () => {
     expect(records('Patients').map((row) => [row.hn, row.province ?? ''])).toEqual([['HN-OLD', ''], ['HN-100', 'ขอนแก่น']]);
   });
 
+  it('loads a patient for editing without the CID lookup hash', () => {
+    const created = post('patient.create', 'usr-cm', patient()) as { data: { patient: { patientId: string } } };
+    const loaded = post('patient.get', 'usr-cm', { patientId: created.data.patient.patientId }) as { ok: boolean; data: Record<string, unknown> };
+    expect(loaded).toMatchObject({ ok: true, data: { hn: 'HN-100', cidCiphertext: 'enc-cid', recordVersion: 1, status: 'ACTIVE' } });
+    expect(loaded.data).not.toHaveProperty('cidLookupHash');
+    expect(post('patient.get', 'usr-cg', { patientId: created.data.patient.patientId })).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+
+  describe('editing', () => {
+    let patientId = '';
+    const edit = (overrides: Record<string, unknown> = {}) => {
+      const { cidCiphertext: _ciphertext, cidLookupHash: _hash, legalBasis: _basis, ...fields } = patient();
+      return { ...fields, patientId, recordVersion: 1, status: 'ACTIVE', caregiverId: 'usr-cg', cidCiphertext: '', cidLookupHash: '', ...overrides };
+    };
+    beforeEach(() => {
+      patientId = (post('patient.create', 'usr-cm', patient({ caregiverId: 'usr-cg' })) as { data: { patient: { patientId: string } } }).data.patient.patientId;
+      const episodeId = records('CareEpisodes')[0]!.episodeId;
+      seed('VisitSchedules', [
+        { visitId: 'vs-past', episodeId, assignedStaffId: 'usr-cg', visitDateTime: '2000-01-01T09:00:00+07:00', status: 'VERIFIED' },
+        { visitId: 'vs-next', episodeId, assignedStaffId: 'usr-cg', visitDateTime: '2099-01-01T09:00:00+07:00', status: 'ASSIGNED' }
+      ]);
+    });
+
+    it('saves changes with a version check and keeps the CID unless a new one is given', () => {
+      expect(post('patient.update', 'usr-cm', edit({ phone: '0811111111', adlScore: 15, dependencyStatus: 'SOCIAL' }))).toMatchObject({ ok: true, data: { recordVersion: 2 } });
+      expect(records('Patients')[0]).toMatchObject({ phone: '0811111111', adlScore: 15, cidCiphertext: 'enc-cid', recordVersion: 2 });
+      expect(post('patient.update', 'usr-cm', edit())).toMatchObject({ ok: false, code: 'VERSION_CONFLICT' });
+      expect(post('patient.update', 'usr-cm', edit({ recordVersion: 2, cidCiphertext: 'enc-new', cidLookupHash: 'hash-new' }))).toMatchObject({ ok: true });
+      expect(records('Patients')[0]).toMatchObject({ cidCiphertext: 'enc-new', cidLookupHash: 'hash-new' });
+    });
+
+    it('keeps HN and CID unique across patients', () => {
+      post('patient.create', 'usr-cm', patient({ hn: 'HN-200', fullName: 'คนอื่น', cidLookupHash: 'hash-other' }));
+      expect(post('patient.update', 'usr-cm', edit({ hn: 'hn-200' }))).toMatchObject({ ok: false, code: 'DUPLICATE_HN' });
+      expect(post('patient.update', 'usr-cm', edit({ cidCiphertext: 'enc-x', cidLookupHash: 'hash-other' }))).toMatchObject({ ok: false, code: 'DUPLICATE_CID' });
+    });
+
+    it('closes care when the patient leaves the service and reopens it on return', () => {
+      expect(post('patient.update', 'usr-cm', edit({ status: 'DECEASED', statusNote: 'ข้อมูลสมมติ' }))).toMatchObject({ ok: true, data: { status: 'DECEASED', cancelledVisits: 1 } });
+      expect(records('Patients')[0]).toMatchObject({ status: 'DECEASED', caregiverId: '', statusNote: 'ข้อมูลสมมติ' });
+      expect(records('CareEpisodes')[0]).toMatchObject({ status: 'CLOSED' });
+      expect(records('StaffAssignments')[0]).toMatchObject({ status: 'ENDED' });
+      expect(Object.fromEntries(records('VisitSchedules').map((row) => [row.visitId, row.status]))).toEqual({ 'vs-past': 'VERIFIED', 'vs-next': 'CANCELLED' });
+      expect((post('patient.list', 'usr-cg', {}) as { data: { items: unknown[] } }).data.items).toHaveLength(0);
+      expect(post('patient.update', 'usr-cm', edit({ recordVersion: 2, status: 'ACTIVE', caregiverId: '' }))).toMatchObject({ ok: true });
+      expect(records('CareEpisodes').map((row) => row.status)).toEqual(['CLOSED', 'ACTIVE']);
+    });
+
+    it('moves or removes the caregiver', () => {
+      seed('Users', [{ userId: 'usr-cg2', role: 'CG', enabled: 'true', displayName: 'CG สอง' }]);
+      expect(post('patient.update', 'usr-cm', edit({ caregiverId: 'usr-cg2' }))).toMatchObject({ ok: true });
+      expect(records('VisitSchedules').find((row) => row.visitId === 'vs-next')).toMatchObject({ assignedStaffId: 'usr-cg2' });
+      expect(post('patient.update', 'usr-cm', edit({ recordVersion: 2, caregiverId: '' }))).toMatchObject({ ok: true });
+      expect(records('StaffAssignments').filter((row) => row.status === 'ACTIVE')).toHaveLength(0);
+      expect(records('VisitSchedules').find((row) => row.visitId === 'vs-next')).toMatchObject({ status: 'PLANNED', assignedStaffId: '' });
+      expect(records('Patients')[0]).toMatchObject({ caregiverId: '' });
+    });
+  });
+
   it('still asks before registering a likely duplicate', () => {
     post('patient.create', 'usr-cm', patient());
     expect(post('patient.create', 'usr-cm', patient({ hn: 'HN-101', cidLookupHash: 'hash-2' }))).toMatchObject({ ok: true, data: { status: 'POTENTIAL_DUPLICATE' } });

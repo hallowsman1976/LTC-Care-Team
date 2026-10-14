@@ -144,6 +144,22 @@ describe('gas proxy surface', () => {
     expect(JSON.stringify(data)).not.toContain('1100000000002');
   });
 
+  it('shows only the last four CID digits of a patient and encrypts a replacement', async () => {
+    const env = makeEnv();
+    const cookie = await loginAs(env, cmActor);
+    const cidCiphertext = await encryptCid('1100000000077', env.CID_ENCRYPTION_KEY_BASE64);
+    const calls = stubGas((gasCall) => (gasCall.action === 'patient.get' ? { patientId: 'pt-1', hn: 'HN-1', cidCiphertext } : { patientId: 'pt-1', recordVersion: 2 }));
+    const loaded = await call(request('/patients/get', { method: 'POST', headers: { cookie: `__Host-ltc_session=${cookie}` }, body: json({ patientId: 'pt-1' }) }), env);
+    const data = (await body(loaded)).data as Record<string, unknown>;
+    expect(data).toMatchObject({ hn: 'HN-1', cidLast4: '0077' });
+    expect(JSON.stringify(data)).not.toMatch(/1100000000077|cidCiphertext/);
+    const update = { patientId: 'pt-1', recordVersion: 1, status: 'ACTIVE', hn: 'HN-1', cid: '1100000000088', fullName: 'นางสมมติ', birthDate: '1945-03-15', sex: 'FEMALE', address: '12' };
+    const saved = await call(request('/patients/update', { method: 'POST', headers: { cookie: `__Host-ltc_session=${cookie}` }, body: json(update) }), env);
+    expect(saved.status).toBe(200);
+    expect(calls[1]).toMatchObject({ action: 'patient.update', payload: { cidCiphertext: expect.any(String), cidLookupHash: expect.any(String) } });
+    expect(JSON.stringify(calls[1]!.payload)).not.toContain('1100000000088');
+  });
+
   it('maps GAS failures to meaningful statuses without leaking internal codes', async () => {
     const env = makeEnv();
     const cookie = await loginAs(env, cmActor);

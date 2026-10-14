@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { patientCreateSchema, type Actor, type Page } from '@smart-ltc/shared';
-import { appendUnique, listAll, listPage, pageOf, withScriptLock, type RowRecord } from '../repositories/sheets';
+import { patientCreateSchema, patientGetSchema, patientUpdateSchema, type Actor, type Page } from '@smart-ltc/shared';
+import { appendUnique, getById, listAll, listPage, pageOf, updateWhere, versionedUpdate, withScriptLock, type RowRecord } from '../repositories/sheets';
 import { ensureColumns } from '../initializer';
 import { activeEpisodeFor, assignCaregiver, requireEnabledUser } from './admin';
 import { requireCapability } from '../security/rbac';
@@ -75,6 +75,98 @@ export function createPatient(actor: Actor, payload: Record<string, unknown>): R
   });
   audit(actor.userId, 'patient.create', 'Patient', patientId, 'SUCCESS', [overrideReason ? 'DUPLICATE_OVERRIDE_RECORDED' : '', input.caregiverId ? `CG:${input.caregiverId}` : ''].filter(Boolean).join(';'));
   return { status: 'CREATED', patient: { ...record, cidCiphertext: undefined, cidLookupHash: undefined } };
+}
+
+﻿/** One patient for the edit form. The gateway turns the CID ciphertext into its last four digits. */
+export function getPatient(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
+  requireCapability(actor, 'patients:write');
+  if (actor.role !== 'CM') throw new Error('CM_REQUIRED');
+  const { patientId } = patientGetSchema.parse(payload);
+  const row = getById('Patients', 'patientId', patientId);
+  if (!row) throw new Error('PATIENT_NOT_FOUND');
+  const { cidLookupHash: _hash, ...patient } = row;
+  return { ...patient, status: patient.status || 'ACTIVE', recordVersion: Number(row.recordVersion) || 1 };
+}
+
+const forwardedPatientUpdateSchema = patientUpdateSchema.omit({ cid: true }).extend({
+  cidCiphertext: z.string().max(500).default(''),
+  cidLookupHash: z.string().max(200).default('')
+});
+
+const bangkokToday = () => Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
+const activeEpisodeIds = (patientId: string) => new Set(listAll('CareEpisodes', (row) => String(row.patientId) === patientId && String(row.status) === 'ACTIVE').map((row) => String(row.episodeId)));
+
+/** Closes the patient's care when they leave the service: episode, assignments and upcoming visits. */
+function closeCare(patientId: string, reason: string): number {
+  const today = bangkokToday();
+  const episodeIds = activeEpisodeIds(patientId);
+  if (!episodeIds.size) return 0;
+  updateWhere('CareEpisodes', (row) => episodeIds.has(String(row.episodeId)), { status: 'CLOSED', endDate: today });
+  updateWhere('StaffAssignments', (row) => episodeIds.has(String(row.episodeId)) && String(row.status) === 'ACTIVE', { status: 'ENDED', dateTo: today });
+  return updateWhere('VisitSchedules', (row) => episodeIds.has(String(row.episodeId))
+    && ['PLANNED', 'ASSIGNED'].includes(String(row.status)) && String(row.visitDateTime).slice(0, 10) >= today, { status: 'CANCELLED', rescheduleReason: reason });
+}
+
+/** Ends the CG assignment without a successor; upcoming visits wait, unassigned, for the next CG. */
+function unassignCaregiver(patientId: string): void {
+  const today = bangkokToday();
+  const episodeIds = activeEpisodeIds(patientId);
+  updateWhere('StaffAssignments', (row) => episodeIds.has(String(row.episodeId)) && String(row.status) === 'ACTIVE' && String(row.role) === 'CG', { status: 'ENDED', dateTo: today });
+  updateWhere('VisitSchedules', (row) => episodeIds.has(String(row.episodeId)) && String(row.status) === 'ASSIGNED' && String(row.visitDateTime).slice(0, 10) >= today, { status: 'PLANNED', assignedStaffId: '' });
+}
+
+/**
+ * Saves an edit, version-checked so two people cannot silently overwrite each other. HN and CID
+ * stay unique; status and caregiver changes carry through to the episode, assignment and visits.
+ */
+export function updatePatient(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
+  requireCapability(actor, 'patients:write');
+  if (actor.role !== 'CM') throw new Error('CM_REQUIRED');
+  const input = forwardedPatientUpdateSchema.parse(payload);
+  ensureColumns('Patients');
+  if (input.careManagerId) requireEnabledUser(input.careManagerId, 'CM');
+  const result = withScriptLock(() => {
+    const current = getById('Patients', 'patientId', input.patientId);
+    if (!current) throw new Error('PATIENT_NOT_FOUND');
+    if ((Number(current.recordVersion) || 1) !== input.recordVersion) throw new Error('VERSION_CONFLICT');
+    if (listPage('Patients', (row) => String(row.patientId) !== input.patientId && String(row.hn).toLowerCase() === input.hn.toLowerCase(), 1).length) throw new Error('DUPLICATE_HN');
+    if (input.cidLookupHash && listPage('Patients', (row) => String(row.patientId) !== input.patientId && String(row.cidLookupHash) === input.cidLookupHash, 1).length) throw new Error('DUPLICATE_CID');
+    const wasActive = String(current.status || 'ACTIVE') === 'ACTIVE';
+    const isActive = input.status === 'ACTIVE';
+    const nextCaregiver = isActive ? (input.caregiverId ?? '') : '';
+    const caregiverChanged = isActive && nextCaregiver !== String(current.caregiverId ?? '');
+    if (caregiverChanged) {
+      requireCapability(actor, 'assignments:manage');
+      if (nextCaregiver) requireEnabledUser(nextCaregiver, 'CG');
+    }
+    // versionedUpdate counts the version up from recordVersion; older rows may have none yet.
+    if (!Number(current.recordVersion)) updateWhere('Patients', (row) => String(row.patientId) === input.patientId, { recordVersion: 1 });
+    const saved = versionedUpdate('Patients', 'patientId', input.patientId, input.recordVersion, {
+      localCode: input.localCode, hn: input.hn, fullName: input.fullName, birthDate: input.birthDate, sex: input.sex, address: input.address, phone: input.phone ?? '',
+      village: villageLabel(input.villageNo, input.villageName, input.village || String(current.village ?? '')),
+      villageNo: input.villageNo ?? '', villageName: input.villageName ?? '', subdistrict: input.subdistrict ?? '', district: input.district ?? '', province: input.province ?? '',
+      latitude: input.latitude ?? '', longitude: input.longitude ?? '',
+      mainCaregiverName: input.mainCaregiverName ?? '', mainCaregiverPhone: input.mainCaregiverPhone ?? '', relationship: input.relationship ?? '',
+      rightType: input.rightType ?? '', diseases: input.diseases ?? '', dependencyStatus: input.dependencyStatus ?? '',
+      adlScore: input.adlScore ?? '', taiGroup: input.taiGroup ?? '', ppsScore: input.ppsScore ?? '', mentalHealthStatus: input.mentalHealthStatus ?? '',
+      careManagerId: input.careManagerId || String(current.careManagerId || actor.userId), registerDate: input.registerDate || String(current.registerDate ?? ''),
+      status: input.status, caregiverId: nextCaregiver,
+      ...(input.status !== String(current.status || 'ACTIVE') ? { statusNote: input.statusNote ?? '', statusChangedAt: new Date().toISOString() } : {}),
+      ...(input.cidCiphertext ? { cidCiphertext: input.cidCiphertext, cidLookupHash: input.cidLookupHash } : {})
+    });
+    let cancelledVisits = 0;
+    if (wasActive && !isActive) cancelledVisits = closeCare(input.patientId, `PATIENT_${input.status}`);
+    if (isActive) {
+      // Reopening, or a patient registered before episodes were opened, gets a fresh episode.
+      activeEpisodeFor(input.patientId);
+      if (caregiverChanged && nextCaregiver) assignCaregiver(actor.userId, input.patientId, nextCaregiver);
+      else if (caregiverChanged) unassignCaregiver(input.patientId);
+    }
+    return { recordVersion: Number(saved.recordVersion), status: input.status, cancelledVisits };
+  });
+  const notes = [result.status !== 'ACTIVE' ? `STATUS:${result.status}` : '', input.statusNote ? 'NOTE' : '', input.cidCiphertext ? 'CID_CHANGED' : ''].filter(Boolean).join(';');
+  audit(actor.userId, 'patient.update', 'Patient', input.patientId, 'SUCCESS', notes);
+  return { patientId: input.patientId, ...result };
 }
 
 export function listPatients(actor: Actor, payload: Record<string, unknown>): Page<RowRecord> {

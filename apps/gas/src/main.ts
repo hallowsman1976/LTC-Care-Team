@@ -4,7 +4,7 @@ import { resolveActorByUserId } from './security/rbac';
 import { createAdlAssessment } from './services/adl';
 import { confirmClassification } from './services/ltc';
 import { submitVisit } from './services/visits';
-import { createPatient, exportPatients, listPatients } from './services/patients';
+import { createPatient, exportPatients, getPatient, listPatients, updatePatient } from './services/patients';
 import { createCarePlan, activateCarePlan } from './services/carePlans';
 import { reviewEncounter } from './services/reviews';
 import { uploadQuarantinedFile } from './services/files';
@@ -27,6 +27,8 @@ const MAX_REQUEST_CHARS = 7_500_000;
 type Handler = (actor: ReturnType<typeof resolveActorByUserId>, payload: Record<string, unknown>) => unknown;
 const ACTIONS: Record<string, Handler> = {
   'patient.create': createPatient,
+  'patient.get': getPatient,
+  'patient.update': updatePatient,
   'patient.list': listPatients,
   'patient.export': exportPatients,
   'dashboard.summary': dashboardSummary,

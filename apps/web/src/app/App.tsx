@@ -13,7 +13,7 @@ import { Assignments, PatientImport, UserDirectory } from '../features/Admin';
 import { CaregiverEdit, Caregivers } from '../features/Caregivers';
 import { VisitRecordForm } from '../features/VisitRecordForm';
 import { AdlForm, CarePlanForm, ClassificationForm } from '../features/ClinicalForms';
-import { PatientForm } from '../features/PatientForm';
+import { PatientEdit, PatientForm } from '../features/PatientForm';
 
 function UnsupportedBrowser() {
   return <main className="mx-auto max-w-lg p-6"><div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-6"><h1 className="text-xl font-bold text-red-900">เบราว์เซอร์ไม่รองรับ</h1><p className="mt-2 text-red-800">กรุณาอัปเดต Chrome/Edge 109+, Firefox 115 ESR+ หรือ Safari/iOS 16.4+ ระบบจะไม่โหลดข้อมูลผู้รับบริการบนเบราว์เซอร์นี้</p></div></main>;
@@ -34,6 +34,7 @@ export function App() {
     <Route path="visits" element={<Visits actor={actor}/>}/><Route path="calendar" element={<Calendar/>}/>
     <Route path="alerts" element={<Alerts/>}/><Route path="reviews" element={<Reviews/>}/>
     <Route path="patients/new" element={<PatientForm actor={actor}/>}/>
+    <Route path="patients/:id/edit" element={<PatientEdit actor={actor}/>}/>
     <Route path="patients/:id/adl/new" element={<AdlForm/>}/>
     <Route path="patients/:id/classification" element={<ClassificationForm/>}/>
     <Route path="care-plans/new" element={<CarePlanForm/>}/>

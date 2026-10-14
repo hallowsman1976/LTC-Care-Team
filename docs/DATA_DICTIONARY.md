@@ -37,4 +37,5 @@ New columns are appended to an existing `Patients` sheet on the next registratio
 | CareManagerID | `careManagerId` | Defaults to the registering CM |
 | CaregiverID | `caregiverId` | Mirror of the active CG in `StaffAssignments`, kept in step by assignment |
 | RegisterDate | `registerDate` | Defaults to today (Bangkok) |
-| Status, CreatedBy, CreatedAt, UpdatedAt | `status`, `createdBy`, `createdAt`, `updatedAt` | Set by the server |
+| Status | `status`, `statusNote`, `statusChangedAt` | ACTIVE, INACTIVE, MOVED or DECEASED; leaving ACTIVE closes the care episode |
+| CreatedBy, CreatedAt, UpdatedAt | `createdBy`, `createdAt`, `updatedAt` | Set by the server |

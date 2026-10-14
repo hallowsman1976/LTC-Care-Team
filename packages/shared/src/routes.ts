@@ -43,6 +43,19 @@ const demoPatients = [
   { patientId: 'pt-demo-003', localCode: 'DEMO-003', hn: 'HN-DEMO-003', fullName: 'นายข้อมูลจำลอง สาม', age: 71, village: 'หมู่ 2', groupNumber: 1, status: 'ACTIVE' }
 ];
 
+/** The edit form's synthetic patient, shared by the local demo and the static preview. */
+export function demoPatientDetail(patientId: string): Record<string, unknown> {
+  const patient = demoPatients.find((item) => item.patientId === patientId) ?? demoPatients[0]!;
+  return {
+    patientId: patient.patientId, localCode: patient.localCode, hn: patient.hn, cidLast4: '0001', fullName: patient.fullName,
+    sex: patient.fullName.startsWith('นาง') ? 'FEMALE' : 'MALE', birthDate: `${2026 - patient.age}-03-15`, phone: '', registerDate: '2026-10-01',
+    address: '12 (ข้อมูลสมมติ)', village: patient.village, villageNo: patient.village.replace(/\D/g, ''), villageName: '', subdistrict: 'ตัวอย่าง', district: 'เมือง', province: 'ขอนแก่น',
+    latitude: '', longitude: '', mainCaregiverName: 'ญาติตัวอย่าง', mainCaregiverPhone: '0800000009', relationship: 'CHILD', rightType: 'UC', diseases: 'ความดันโลหิตสูง',
+    dependencyStatus: 'HOMEBOUND', adlScore: 8, taiGroup: 'C3', ppsScore: 60, mentalHealthStatus: 'NORMAL',
+    careManagerId: 'usr-demo-cm', caregiverId: patient.patientId === 'pt-demo-001' ? 'usr-demo-cg' : '', status: patient.status, recordVersion: 1
+  };
+}
+
 export interface ReadRoute {
   action: string;
   capability?: Capability;

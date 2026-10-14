@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DEPENDENCY_OPTIONS, MENTAL_HEALTH_OPTIONS, RELATIONSHIP_OPTIONS, RIGHT_TYPE_OPTIONS, SEX_OPTIONS, TAI_GROUP_OPTIONS } from './patient';
+import { DEPENDENCY_OPTIONS, MENTAL_HEALTH_OPTIONS, PATIENT_STATUS_OPTIONS, RELATIONSHIP_OPTIONS, RIGHT_TYPE_OPTIONS, SEX_OPTIONS, TAI_GROUP_OPTIONS } from './patient';
 
 export const roleSchema = z.enum(['ADMIN', 'CM', 'CG']);
 
@@ -48,6 +48,24 @@ export const patientCreateSchema = z.object({
   privacyNoticeVersion: z.string().trim().max(40).optional(),
   duplicateOverrideReason: z.string().trim().min(10).max(500).optional()
 });
+
+export const patientGetSchema = z.object({ patientId: z.string().trim().min(1).max(80) });
+
+/**
+ * An edit. Empty `cid` keeps the stored one. Moving `status` away from ACTIVE closes the care
+ * episode; an empty `caregiverId` ends the current CG assignment.
+ */
+export const patientUpdateSchema = patientCreateSchema
+  .omit({ cid: true, legalBasis: true, privacyNoticeVersion: true, duplicateOverrideReason: true })
+  .extend({
+    patientId: z.string().trim().min(1).max(80),
+    recordVersion: z.number().int().min(1),
+    cid: z.union([z.literal(''), z.string().trim().regex(/^\d{13}$/, 'กรุณากรอกเลข 13 หลัก')]),
+    status: codes(PATIENT_STATUS_OPTIONS),
+    statusNote: z.string().trim().max(300).optional()
+  });
+
+export type PatientUpdateInput = z.infer<typeof patientUpdateSchema>;
 
 const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 

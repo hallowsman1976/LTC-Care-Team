@@ -8,7 +8,7 @@ export const SHEETS: Record<string, string[]> = {
   StaffProfiles: ['staffId', 'userId', 'staffType', 'credentialType', 'credentialVerifiedAt', 'qualificationExpiry'],
   Patients: ['patientId', 'localCode', 'hn', 'cidCiphertext', 'cidLookupHash', 'fullName', 'birthDate', 'sex', 'address', 'village', 'phone', 'status', 'createdAt', 'updatedAt', 'createdBy', 'recordVersion',
     'villageNo', 'villageName', 'subdistrict', 'district', 'province', 'latitude', 'longitude', 'mainCaregiverName', 'mainCaregiverPhone', 'relationship',
-    'rightType', 'diseases', 'dependencyStatus', 'adlScore', 'taiGroup', 'ppsScore', 'mentalHealthStatus', 'careManagerId', 'caregiverId', 'registerDate'],
+    'rightType', 'diseases', 'dependencyStatus', 'adlScore', 'taiGroup', 'ppsScore', 'mentalHealthStatus', 'careManagerId', 'caregiverId', 'registerDate', 'statusNote', 'statusChangedAt'],
   PatientContacts: ['contactId', 'patientId', 'contactName', 'relation', 'phone', 'emergencyFlag', 'authorizationBasis'],
   CareEpisodes: ['episodeId', 'patientId', 'startDate', 'endDate', 'eligibilityStatus', 'status', 'fundingType', 'legalBasis'],
   ADLAssessments: ['assessmentId', 'episodeId', 'assessorId', 'assessmentDate', 'feeding', 'grooming', 'transfer', 'toiletUse', 'mobility', 'dressing', 'stairs', 'bathing', 'bowels', 'bladder', 'totalScore', 'scoringVersion', 'approvedBy', 'status', 'createdAt', 'updatedAt', 'createdBy', 'recordVersion'],
