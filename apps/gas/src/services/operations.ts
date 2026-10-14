@@ -53,8 +53,30 @@ export function listAlerts(actor: Actor): Page<RowRecord> {
 
 export function listReviews(actor: Actor): Page<RowRecord> {
   requireCapability(actor, 'encounter:review');
-  return mapPage(pageOf('VisitEncounters', (row) => String(row.status) === 'SUBMITTED', 50), (row) => ({
-    encounterId: row.encounterId, visitId: row.visitId, performerId: row.performerId,
-    endedAt: row.endedAt, status: row.status, recordVersion: row.recordVersion
-  }));
+  const page = pageOf('VisitEncounters', (row) => String(row.status) === 'SUBMITTED', 50);
+  // Everything the CM needs to decide, resolved for this page only.
+  const ids = (column: string) => new Set(page.items.map((row) => String(row[column])));
+  const encounterIds = ids('encounterId');
+  const visits = byId(listAll('VisitSchedules', (row) => ids('visitId').has(String(row.visitId))), 'visitId');
+  const episodes = byId(listAll('CareEpisodes', (row) => ids('episodeId').has(String(row.episodeId))), 'episodeId');
+  const patientIds = new Set([...episodes.values()].map((row) => String(row.patientId)));
+  const patients = byId(listAll('Patients', (row) => patientIds.has(String(row.patientId))), 'patientId');
+  const performers = byId(listAll('Users', (row) => ids('performerId').has(String(row.userId))), 'userId');
+  const urgent = new Set(listAll('Alerts', (row) => encounterIds.has(String(row.encounterId)) && String(row.alertType) === 'CG_URGENT_FLAG')
+    .map((row) => String(row.encounterId)));
+  return mapPage(page, (row) => {
+    const visit = visits.get(String(row.visitId));
+    const patient = patients.get(String(episodes.get(String(row.episodeId))?.patientId ?? ''));
+    return {
+      encounterId: row.encounterId, visitId: row.visitId, performerId: row.performerId,
+      performerName: performers.get(String(row.performerId))?.displayName ?? '',
+      patientName: patient?.fullName ?? '', visitType: visit?.visitType ?? '', visitDateTime: visit?.visitDateTime ?? '',
+      startedAt: row.startedAt, endedAt: row.endedAt, notes: row.notes, vitalsJson: row.vitalsJson,
+      urgentFlag: urgent.has(String(row.encounterId)), status: row.status, recordVersion: row.recordVersion
+    };
+  });
+}
+
+function byId(rows: RowRecord[], column: string): Map<string, RowRecord> {
+  return new Map(rows.map((row) => [String(row[column]), row]));
 }

@@ -44,7 +44,12 @@ export const READ_ROUTES: Record<string, ReadRoute> = {
   },
   '/reviews': {
     action: 'review.list', capability: 'encounter:review',
-    demo: () => page([{ encounterId: 'enc-demo-001', visitId: 'vs-demo-000', performerId: 'usr-demo-cg', endedAt: '2026-10-12T10:00:00+07:00', status: 'SUBMITTED', recordVersion: 1 }])
+    demo: () => page([{
+      encounterId: 'enc-demo-001', visitId: 'vs-demo-000', performerId: 'usr-demo-cg', performerName: 'CG ตัวอย่าง', patientName: 'นายตัวอย่าง หนึ่ง',
+      visitType: 'เยี่ยมบ้านตาม Care Plan', visitDateTime: '2026-10-12T09:00:00+07:00', startedAt: '2026-10-12T09:05', endedAt: '2026-10-12T09:50',
+      notes: ['กิจกรรม: ทำได้บางส่วน (ผู้ป่วยเหนื่อยหรือไม่สุขสบาย)', 'การกินอาหารและน้ำ: กินได้น้อยลง', 'บันทึกเพิ่มเติม: ญาติแจ้งว่านอนไม่ค่อยหลับ 2 คืน'].join('\n'),
+      vitalsJson: JSON.stringify({ temperature: 37.8, pulse: 96 }), urgentFlag: true, status: 'SUBMITTED', recordVersion: 1
+    }])
   }
 };
 
