@@ -29,6 +29,8 @@ External API อยู่ใต้ `/api/v1`. ทุก response JSON ใช้ 
 | POST | `/visit-files` | `patients:read` + own encounter | `fileUploadSchema`; ≤ 5 MB, quarantined |
 | GET | `/admin/caregivers` | `users:manage` | CG accounts with active patient counts |
 | POST | `/admin/caregivers` | `users:manage` | `caregiverCreateSchema` (account + profile: CID, birth date, phone, address, email, photo ≤ 512 KB, education, organization, trainings); CID encrypted at Worker; DEMO only (password sign-in); `USERNAME_TAKEN`, `DUPLICATE_STAFF_CID` |
+| POST | `/admin/caregivers/get` | `users:manage` | `caregiverGetSchema`; profile for the edit form; CID decrypted at Worker and returned as `cidLast4` only |
+| POST | `/admin/caregivers/update` | `users:manage` | `caregiverUpdateSchema`; version-checked (`VERSION_CONFLICT`); empty `cid`/`newPassword` keep the current value; replaced photos go to Drive trash |
 | GET | `/admin/users` | `users:manage` | All accounts with role, sign-in name, status and CM credential expiry; no secrets |
 | GET | `/admin/assignments` | `assignments:manage` | Every active patient with the current CG |
 | POST | `/admin/assignments` | `assignments:manage` | `assignmentSetSchema`; ends the previous CG assignment, moves upcoming visits, opens an episode if none |

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import worker from '../src/index';
 import { totpCode } from '../src/auth';
-import { encryptText } from '../src/crypto';
+import { encryptCid, encryptText } from '../src/crypto';
 import { makeEnv, request, stubGas } from './fakes';
 
 const realFetch = globalThis.fetch;
@@ -130,6 +130,18 @@ describe('gas proxy surface', () => {
     expect(response.status).toBe(200);
     expect(calls[0]).toMatchObject({ action: 'caregiver.create', payload: { username: 'cg.new', cidCiphertext: expect.any(String), cidLookupHash: expect.any(String) } });
     expect(JSON.stringify(calls[0]!.payload)).not.toContain(caregiver.cid);
+  });
+
+  it('shows only the last four CID digits when loading a caregiver for editing', async () => {
+    const env = makeEnv();
+    const cookie = await loginAs(env, adminActor);
+    const cidCiphertext = await encryptCid('1100000000002', env.CID_ENCRYPTION_KEY_BASE64);
+    stubGas(() => ({ userId: 'usr-cg', displayName: 'CG', cidCiphertext }));
+    const response = await call(request('/admin/caregivers/get', { method: 'POST', headers: { cookie: `__Host-ltc_session=${cookie}` }, body: json({ userId: 'usr-cg' }) }), env);
+    const data = (await body(response)).data as Record<string, unknown>;
+    expect(data).toMatchObject({ userId: 'usr-cg', cidLast4: '0002' });
+    expect(data).not.toHaveProperty('cidCiphertext');
+    expect(JSON.stringify(data)).not.toContain('1100000000002');
   });
 
   it('maps GAS failures to meaningful statuses without leaking internal codes', async () => {

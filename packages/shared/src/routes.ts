@@ -3,7 +3,7 @@ import {
   adlCreateSchema, carePlanActivateSchema, carePlanCreateSchema, classificationConfirmSchema,
   encounterReviewSchema, fileUploadSchema, visitSubmitSchema
 } from './actions';
-import { assignmentSetSchema } from './admin';
+import { assignmentSetSchema, type CaregiverDetail } from './admin';
 import { capabilitiesFor } from './rbac';
 import { visitContextSchema, visitImageUploadSchema, visitRecordSubmitSchema } from './visitRecord';
 import type { Actor, Capability, Page } from './types';
@@ -24,6 +24,18 @@ const demoCaregivers = [
   { userId: 'usr-demo-cg', displayName: 'CG ตัวอย่าง', username: 'cg.demo', enabled: true, activePatients: 1, phone: '0800000001', organizationName: 'รพ.สต. ตัวอย่าง', education: 'UPPER_SECONDARY', photoUrl: '', latestTraining: 'หลักสูตรผู้ดูแลผู้สูงอายุ (Caregiver) 70 ชั่วโมง', trainingCount: 1 },
   { userId: 'usr-demo-cg2', displayName: 'CG ตัวอย่าง สอง', username: 'cg.demo2', enabled: true, activePatients: 0, phone: '', organizationName: '', education: '', photoUrl: '', latestTraining: '', trainingCount: 0 }
 ];
+
+/** The edit form's synthetic caregiver, shared by the local demo and the static preview. */
+export function demoCaregiverDetail(userId: string): CaregiverDetail {
+  const caregiver = demoCaregivers.find((item) => item.userId === userId) ?? demoCaregivers[0]!;
+  return {
+    userId: caregiver.userId, displayName: caregiver.displayName, username: caregiver.username, enabled: caregiver.enabled, activePatients: caregiver.activePatients,
+    cidLast4: '0002', birthDate: '1985-04-12', phone: caregiver.phone, address: '12 ม.2 ต.ตัวอย่าง (ข้อมูลสมมติ)', email: '', photoUrl: '',
+    education: caregiver.education, organization: { name: caregiver.organizationName, type: 'HEALTH_PROMOTING_HOSPITAL', serviceArea: 'หมู่ 2' },
+    trainings: caregiver.trainingCount ? [{ course: caregiver.latestTraining, provider: 'สสจ.ตัวอย่าง', completedOn: '2024-06-30', hours: 70 }] : [],
+    recordVersion: caregiver.trainingCount ? 1 : 0
+  };
+}
 
 const demoPatients = [
   { patientId: 'pt-demo-001', localCode: 'DEMO-001', hn: 'HN-DEMO-001', fullName: 'นายตัวอย่าง หนึ่ง', age: 78, village: 'หมู่ 1', groupNumber: 3, status: 'ACTIVE' },

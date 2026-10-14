@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { assignmentSetSchema, caregiverCreateSchema, MAX_IMPORT_ROWS_PER_REQUEST, patientImportRowSchema, patientImportSchema, type Actor, type Page } from '@smart-ltc/shared';
+import { assignmentSetSchema, caregiverCreateSchema, caregiverGetSchema, caregiverUpdateSchema, MAX_IMPORT_ROWS_PER_REQUEST, patientImportRowSchema, patientImportSchema, type Actor, type Page } from '@smart-ltc/shared';
 import { getAppMode } from '../config';
 import { ensureSheet } from '../initializer';
-import { appendUnique, bulkAppend, getById, getSheet, headersOf, listAll, updateWhere, withScriptLock, type RowRecord } from '../repositories/sheets';
+import { appendUnique, bulkAppend, getById, getSheet, headersOf, listAll, updateWhere, versionedUpdate, withScriptLock, type RowRecord } from '../repositories/sheets';
 import { requireCapability } from '../security/rbac';
 import { audit } from '../security/audit';
 import { storePasswordCredential } from '../admin/credentials';
@@ -10,7 +10,7 @@ import { storePasswordCredential } from '../admin/credentials';
 const bangkokToday = () => Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
 const isActiveCgAssignment = (row: RowRecord) => String(row.status) === 'ACTIVE' && String(row.role) === 'CG';
 
-function trainingsOf(profile: RowRecord | undefined): Array<{ course: string; completedOn: string }> {
+function trainingsOf(profile: RowRecord | null | undefined): Array<{ course: string; completedOn: string }> {
   try { return JSON.parse(String(profile?.trainingsJson || '[]')) as Array<{ course: string; completedOn: string }>; } catch { return []; }
 }
 
@@ -74,18 +74,7 @@ export function createCaregiver(actor: Actor, payload: Record<string, unknown>):
       || listAll('AuthCredentials', (row) => String(row.status) === 'ACTIVE' && String(row.identifierNormalized).toLowerCase() === input.username).length > 0;
     if (taken) throw new Error('USERNAME_TAKEN');
     if (listAll('CaregiverProfiles', (row) => String(row.cidLookupHash) === input.cidLookupHash).length) throw new Error('DUPLICATE_STAFF_CID');
-    let photoFileId = '';
-    let photoUrl = '';
-    if (input.photo) {
-      const bytes = Utilities.base64Decode(input.photo.base64);
-      if (bytes.length < 1 || bytes.length > 512 * 1024) throw new Error('FILE_SIZE_NOT_ALLOWED');
-      // The file name carries the user id only, never the person's name.
-      const file = staffPhotoFolder().createFile(Utilities.newBlob(bytes, 'image/jpeg', `staff_${userId}.jpg`));
-      // lh3 links only open for files shared by link: synthetic DEMO data only, PILOT photos stay private.
-      if (getAppMode() === 'DEMO') file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      photoFileId = file.getId();
-      photoUrl = `https://lh3.googleusercontent.com/d/${photoFileId}`;
-    }
+    const { photoFileId, photoUrl } = input.photo ? savePhoto(userId, input.photo.base64) : { photoFileId: '', photoUrl: '' };
     appendUnique('Users', 'userId', { userId, identitySubject: '', email: input.email, usernameNormalized: input.username, displayName: input.displayName, role: 'CG', enabled: 'true', createdAt: now, updatedAt: now });
     appendUnique('StaffProfiles', 'staffId', { staffId: `stf-${Utilities.getUuid()}`, userId, staffType: 'CG', credentialType: input.trainings[0]?.course ?? '', credentialVerifiedAt: '', qualificationExpiry: '' });
     appendUnique('CaregiverProfiles', 'userId', {
@@ -159,6 +148,93 @@ const forwardedRowSchema = patientImportRowSchema.omit({ cid: true }).extend({
   cidCiphertext: z.string().min(1).max(500),
   cidLookupHash: z.string().min(1).max(200)
 });
+function savePhoto(userId: string, base64: string): { photoFileId: string; photoUrl: string } {
+  const bytes = Utilities.base64Decode(base64);
+  if (bytes.length < 1 || bytes.length > 512 * 1024) throw new Error('FILE_SIZE_NOT_ALLOWED');
+  // The file name carries the user id only, never the person's name.
+  const file = staffPhotoFolder().createFile(Utilities.newBlob(bytes, 'image/jpeg', `staff_${userId}.jpg`));
+  // lh3 links only open for files shared by link: synthetic DEMO data only, PILOT photos stay private.
+  if (getAppMode() === 'DEMO') file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return { photoFileId: file.getId(), photoUrl: `https://lh3.googleusercontent.com/d/${file.getId()}` };
+}
+
+/** A replaced or removed photo goes to the Drive trash, where the owner can still restore it. */
+function trashPhoto(fileId: string): void {
+  if (!fileId) return;
+  try { DriveApp.getFileById(fileId).setTrashed(true); } catch (error) { console.warn(JSON.stringify({ code: 'PHOTO_TRASH_FAILED', fileId, error: String(error) })); }
+}
+
+function caregiverUser(userId: string): RowRecord {
+  const user = getById('Users', 'userId', userId);
+  if (!user || String(user.role) !== 'CG') throw new Error('CAREGIVER_NOT_FOUND');
+  return user;
+}
+
+/** One caregiver for the edit form. The gateway turns the CID ciphertext into its last four digits. */
+export function getCaregiver(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
+  requireCapability(actor, 'users:manage');
+  const { userId } = caregiverGetSchema.parse(payload);
+  ensureSheet('CaregiverProfiles');
+  const user = caregiverUser(userId);
+  const profile = getById('CaregiverProfiles', 'userId', userId);
+  const credential = listAll('AuthCredentials', (row) => String(row.userId) === userId && String(row.status) === 'ACTIVE')[0];
+  return {
+    userId, displayName: user.displayName, username: credential?.identifierNormalized ?? user.usernameNormalized ?? '',
+    enabled: String(user.enabled).toLowerCase() === 'true',
+    activePatients: listAll('StaffAssignments', (row) => isActiveCgAssignment(row) && String(row.staffId) === userId).length,
+    cidCiphertext: profile?.cidCiphertext ?? '', birthDate: profile?.birthDate ?? '', phone: profile?.phone ?? '', address: profile?.address ?? '',
+    email: profile?.email || user.email || '', photoUrl: profile?.photoUrl ?? '', education: profile?.education ?? '',
+    organization: { name: profile?.organizationName ?? '', type: profile?.organizationType || 'HEALTH_PROMOTING_HOSPITAL', serviceArea: profile?.serviceArea ?? '' },
+    trainings: trainingsOf(profile), recordVersion: Number(profile?.recordVersion ?? 0)
+  };
+}
+
+const forwardedCaregiverUpdateSchema = caregiverUpdateSchema.omit({ cid: true }).extend({
+  cidCiphertext: z.string().max(500),
+  cidLookupHash: z.string().max(200)
+});
+
+/**
+ * Saves an edit. The profile row is version-checked so two people editing the same caregiver
+ * cannot silently overwrite each other; caregivers registered before profiles existed get one.
+ */
+export function updateCaregiver(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
+  requireCapability(actor, 'users:manage');
+  const input = forwardedCaregiverUpdateSchema.parse(payload);
+  if (input.newPassword && getAppMode() !== 'DEMO') throw new Error('PASSWORD_AUTH_DISABLED');
+  ensureSheet('CaregiverProfiles');
+  const now = new Date().toISOString();
+  const result = withScriptLock(() => {
+    const user = caregiverUser(input.userId);
+    const profile = getById('CaregiverProfiles', 'userId', input.userId);
+    if (Number(profile?.recordVersion ?? 0) !== input.recordVersion) throw new Error('VERSION_CONFLICT');
+    if (input.cidLookupHash && listAll('CaregiverProfiles', (row) => String(row.cidLookupHash) === input.cidLookupHash && String(row.userId) !== input.userId).length) throw new Error('DUPLICATE_STAFF_CID');
+    let photo = { photoFileId: String(profile?.photoFileId ?? ''), photoUrl: String(profile?.photoUrl ?? '') };
+    const previousPhoto = photo.photoFileId;
+    if (input.photo) photo = savePhoto(input.userId, input.photo.base64);
+    else if (input.removePhoto) photo = { photoFileId: '', photoUrl: '' };
+    const changes = {
+      userId: input.userId, birthDate: input.birthDate, phone: input.phone, address: input.address, email: input.email,
+      ...photo, education: input.education, organizationName: input.organization.name, organizationType: input.organization.type,
+      serviceArea: input.organization.serviceArea, trainingsJson: JSON.stringify(input.trainings),
+      ...(input.cidCiphertext ? { cidCiphertext: input.cidCiphertext, cidLookupHash: input.cidLookupHash } : {})
+    };
+    const saved = profile
+      ? versionedUpdate('CaregiverProfiles', 'userId', input.userId, input.recordVersion, changes)
+      : appendUnique('CaregiverProfiles', 'userId', { cidCiphertext: '', cidLookupHash: '', ...changes, createdAt: now, updatedAt: now, createdBy: actor.userId, recordVersion: 1 });
+    updateWhere('Users', (row) => String(row.userId) === input.userId, { displayName: input.displayName, email: input.email, enabled: input.enabled ? 'true' : 'false', updatedAt: now });
+    if (input.newPassword) {
+      const credential = listAll('AuthCredentials', (row) => String(row.userId) === input.userId && String(row.status) === 'ACTIVE')[0];
+      storePasswordCredential(input.userId, String(credential?.identifierNormalized || user.usernameNormalized), input.newPassword);
+    }
+    if (previousPhoto && previousPhoto !== photo.photoFileId) trashPhoto(previousPhoto);
+    return { recordVersion: Number(saved.recordVersion) };
+  });
+  const notes = [input.enabled ? '' : 'DISABLED', input.newPassword ? 'PASSWORD_RESET' : '', input.cidCiphertext ? 'CID_CHANGED' : ''].filter(Boolean).join(';');
+  audit(actor.userId, 'caregiver.update', 'User', input.userId, 'SUCCESS', notes);
+  return { userId: input.userId, ...result };
+}
+
 const forwardedCaregiverSchema = caregiverCreateSchema.omit({ cid: true }).extend({
   cidCiphertext: z.string().min(1).max(500),
   cidLookupHash: z.string().min(1).max(200)

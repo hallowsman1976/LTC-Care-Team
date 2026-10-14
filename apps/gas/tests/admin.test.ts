@@ -61,6 +61,30 @@ describe('caregiver accounts', () => {
     expect(post('caregiver.create', 'usr-admin', caregiver({ username: 'cg.other' }))).toMatchObject({ ok: false, code: 'DUPLICATE_STAFF_CID' });
   });
 
+  it('loads a caregiver for editing and saves changes with a version check', () => {
+    const created = post('caregiver.create', 'usr-admin', caregiver({ photo: { mimeType: 'image/jpeg', base64: Buffer.from('old').toString('base64') } })) as { data: { userId: string } };
+    const userId = created.data.userId;
+    const loaded = post('caregiver.get', 'usr-admin', { userId }) as { ok: boolean; data: Record<string, unknown> };
+    expect(loaded).toMatchObject({ ok: true, data: { username: 'cg.new', cidCiphertext: 'enc-cid', phone: '0812345678', recordVersion: 1, organization: { name: 'รพ.สต. ทดสอบ' } } });
+    const { cidCiphertext: _ciphertext, username: _username, activePatients: _count, photoUrl: _photo, ...form } = loaded.data;
+    const edit = { ...form, displayName: 'CG แก้ไข', phone: '0899999999', enabled: false, newPassword: 'another long password', removePhoto: true, cidCiphertext: '', cidLookupHash: '' };
+    expect(post('caregiver.update', 'usr-admin', edit)).toMatchObject({ ok: true, data: { recordVersion: 2 } });
+    expect(records('CaregiverProfiles')[0]).toMatchObject({ phone: '0899999999', photoUrl: '', cidCiphertext: 'enc-cid', recordVersion: 2 });
+    expect(records('Users').find((user) => user.userId === userId)).toMatchObject({ displayName: 'CG แก้ไข', enabled: 'false' });
+    expect(fakeGas.files[0]).toMatchObject({ trashed: true });
+    // A second save from the same stale form is refused instead of overwriting.
+    expect(post('caregiver.update', 'usr-admin', edit)).toMatchObject({ ok: false, code: 'VERSION_CONFLICT' });
+    // The new password replaced the old one (the account is disabled, so sign-in itself is refused).
+    expect(records('AuthCredentials').filter((row) => row.userId === userId).map((row) => row.status)).toEqual(['REVOKED', 'ACTIVE']);
+  });
+
+  it('gives a caregiver registered before profiles existed a profile on first edit', () => {
+    const edit = { ...caregiver(), userId: 'usr-cg', recordVersion: 0, enabled: true, newPassword: '', removePhoto: false, cidCiphertext: 'enc-cg', cidLookupHash: 'hash-cg' };
+    expect(post('caregiver.update', 'usr-admin', edit)).toMatchObject({ ok: true, data: { recordVersion: 1 } });
+    expect(records('CaregiverProfiles')).toEqual([expect.objectContaining({ userId: 'usr-cg', cidCiphertext: 'enc-cg' })]);
+    expect(post('caregiver.get', 'usr-admin', { userId: 'usr-admin' })).toMatchObject({ ok: false, code: 'CAREGIVER_NOT_FOUND' });
+  });
+
   it('rejects a clear-text CID and is not available to caregivers', () => {
     const { cidCiphertext: _ciphertext, cidLookupHash: _hash, ...plain } = caregiver();
     expect(post('caregiver.create', 'usr-admin', { ...plain, cid: '1100000000001' })).toMatchObject({ ok: false, code: 'VALIDATION_FAILED' });

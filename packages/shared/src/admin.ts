@@ -43,11 +43,12 @@ export const caregiverTrainingSchema = z.object({
   hours: z.number({ invalid_type_error: 'ระบุเป็นตัวเลข' }).int().min(1).max(2000).optional()
 });
 
-export const caregiverCreateSchema = z.object({
+const cidSchema = z.string().trim().regex(/^\d{13}$/, 'กรุณากรอกเลข 13 หลัก');
+const passwordSchema = z.string().min(12, 'รหัสผ่านอย่างน้อย 12 ตัวอักษร').max(200);
+
+/** Profile fields shared by the add and edit forms. */
+const caregiverProfileShape = {
   displayName: z.string().trim().min(2, 'กรอกชื่อ–สกุลอย่างน้อย 2 ตัวอักษร').max(120),
-  username: z.string().trim().toLowerCase().regex(/^[a-z0-9._-]{3,40}$/, 'ใช้ a–z ตัวเลข จุด ขีด 3–40 ตัว'),
-  password: z.string().min(12, 'รหัสผ่านอย่างน้อย 12 ตัวอักษร').max(200),
-  cid: z.string().trim().regex(/^\d{13}$/, 'กรุณากรอกเลข 13 หลัก'),
   birthDate: pastDate,
   phone: z.string().transform((value) => value.replace(/[\s-]/g, '')).pipe(z.string().regex(/^0\d{8,9}$/, 'เบอร์โทร 9–10 หลัก ขึ้นต้นด้วย 0')),
   address: z.string().trim().min(5, 'กรอกที่อยู่').max(500),
@@ -60,7 +61,35 @@ export const caregiverCreateSchema = z.object({
     serviceArea: z.string().trim().max(200)
   }),
   trainings: z.array(caregiverTrainingSchema).max(10)
+};
+
+export const caregiverCreateSchema = z.object({
+  ...caregiverProfileShape,
+  username: z.string().trim().toLowerCase().regex(/^[a-z0-9._-]{3,40}$/, 'ใช้ a–z ตัวเลข จุด ขีด 3–40 ตัว'),
+  password: passwordSchema,
+  cid: cidSchema
 });
+
+export const caregiverGetSchema = z.object({ userId: entityId });
+
+/** An edit. Empty `cid` or `newPassword` keeps the current one; `recordVersion` 0 means no profile row yet. */
+export const caregiverUpdateSchema = z.object({
+  ...caregiverProfileShape,
+  userId: entityId,
+  recordVersion: z.number().int().min(0),
+  enabled: z.boolean(),
+  cid: z.union([z.literal(''), cidSchema]),
+  newPassword: z.union([z.literal(''), passwordSchema]),
+  removePhoto: z.boolean()
+});
+
+/** A caregiver as the edit form loads it. The CID is never sent back, only its last four digits. */
+export interface CaregiverDetail {
+  userId: string; displayName: string; username: string; enabled: boolean; activePatients: number;
+  cidLast4: string; birthDate: string; phone: string; address: string; email: string; photoUrl: string;
+  education: string; organization: { name: string; type: string; serviceArea: string };
+  trainings: CaregiverTraining[]; recordVersion: number;
+}
 
 export const assignmentSetSchema = z.object({
   patientId: entityId,
@@ -82,6 +111,7 @@ export const patientImportSchema = z.object({
 
 export type CaregiverCreateInput = z.infer<typeof caregiverCreateSchema>;
 export type CaregiverTraining = z.infer<typeof caregiverTrainingSchema>;
+export type CaregiverUpdateInput = z.infer<typeof caregiverUpdateSchema>;
 export type AssignmentSetInput = z.infer<typeof assignmentSetSchema>;
 export type PatientImportRow = z.infer<typeof patientImportRowSchema>;
 export type PatientImportInput = z.infer<typeof patientImportSchema>;

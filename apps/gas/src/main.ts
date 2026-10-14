@@ -18,7 +18,7 @@ import { seedDemoData as seedDemo } from './admin/demoData';
 import { runLoadProbe as probe, seedLoadTestData as seedLoad, type LoadTestOptions } from './admin/loadTest';
 import { archiveAuditLogs as archiveAudit, installAuditArchiveTrigger as installArchiveTrigger } from './jobs/auditArchive';
 import { dashboardSummary, listAlerts, listReviews, listVisits } from './services/operations';
-import { createCaregiver, importPatients, listAssignments, listCaregivers, listUsers, setAssignment } from './services/admin';
+import { createCaregiver, getCaregiver, importPatients, listAssignments, listCaregivers, listUsers, setAssignment, updateCaregiver } from './services/admin';
 import { submitVisitRecord, uploadVisitImage, visitContext } from './services/visitRecords';
 
 // A 5 MB upload is ~6.7 MB as base64, plus the envelope.
@@ -46,6 +46,8 @@ const ACTIONS: Record<string, Handler> = {
   'caregiver.list': listCaregivers,
   'user.list': listUsers,
   'caregiver.create': createCaregiver,
+  'caregiver.get': getCaregiver,
+  'caregiver.update': updateCaregiver,
   'assignment.list': listAssignments,
   'assignment.set': setAssignment,
   'patient.import': importPatients

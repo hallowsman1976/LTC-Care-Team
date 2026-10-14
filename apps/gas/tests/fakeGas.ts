@@ -148,7 +148,10 @@ export function installFakeGas(properties: Record<string, string> = {}): FakeGas
     Permission: { VIEW: 'VIEW' },
     getFolderById: (folderId: string) => folder(folderId),
     createFolder: (name: string) => folder(`folder-${name}`),
-    getFileById: (id: string) => ({ moveTo: (target: { getId(): string }) => { fakeGas.archives.get(id)!.folderId = target.getId(); } })
+    getFileById: (id: string) => ({
+      moveTo: (target: { getId(): string }) => { fakeGas.archives.get(id)!.folderId = target.getId(); },
+      setTrashed: (trashed: boolean) => { const file = fakeGas.files.find((candidate) => candidate.id === id) as { trashed?: boolean } | undefined; if (file) file.trashed = trashed; }
+    })
   };
   globals.ContentService = {
     MimeType: { JSON: 'JSON' },

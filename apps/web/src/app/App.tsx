@@ -9,7 +9,8 @@ import { getMe } from '../lib/api';
 import { ApiError } from '../lib/api';
 import { Login } from '../features/Login';
 import { Layout } from './Layout';
-import { Assignments, Caregivers, PatientImport, UserDirectory } from '../features/Admin';
+import { Assignments, PatientImport, UserDirectory } from '../features/Admin';
+import { CaregiverEdit, Caregivers } from '../features/Caregivers';
 import { VisitRecordForm } from '../features/VisitRecordForm';
 import { AdlForm, CarePlanForm, ClassificationForm, PatientForm } from '../features/ClinicalForms';
 
@@ -39,6 +40,7 @@ export function App() {
     <Route path="assignments" element={<Assignments/>}/>
     <Route path="settings/import" element={<PatientImport/>}/>
     <Route path="settings/caregivers" element={<Caregivers/>}/>
+    <Route path="settings/caregivers/:userId" element={<CaregiverEdit/>}/>
     <Route path="settings/users" element={<UserDirectory actor={actor}/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/>
   </Route></Routes>;
