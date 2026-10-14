@@ -18,6 +18,7 @@ import { seedDemoData as seedDemo } from './admin/demoData';
 import { runLoadProbe as probe, seedLoadTestData as seedLoad, type LoadTestOptions } from './admin/loadTest';
 import { archiveAuditLogs as archiveAudit, installAuditArchiveTrigger as installArchiveTrigger } from './jobs/auditArchive';
 import { dashboardSummary, listAlerts, listReviews, listVisits } from './services/operations';
+import { submitVisitRecord, uploadVisitImage, visitContext } from './services/visitRecords';
 
 // A 5 MB upload is ~6.7 MB as base64, plus the envelope.
 const MAX_REQUEST_CHARS = 7_500_000;
@@ -37,7 +38,10 @@ const ACTIONS: Record<string, Handler> = {
   'carePlan.activate': activateCarePlan,
   'visit.submit': submitVisit,
   'encounter.review': reviewEncounter,
-  'file.upload': uploadQuarantinedFile
+  'file.upload': uploadQuarantinedFile,
+  'visit.context': visitContext,
+  'visitImage.upload': uploadVisitImage,
+  'visitRecord.submit': submitVisitRecord
 };
 
 const ANONYMOUS_ACTIONS: Record<string, (payload: Record<string, unknown>) => unknown> = {

@@ -4,6 +4,7 @@ import {
   encounterReviewSchema, fileUploadSchema, visitSubmitSchema
 } from './actions';
 import { capabilitiesFor } from './rbac';
+import { visitContextSchema, visitImageUploadSchema, visitRecordSubmitSchema } from './visitRecord';
 import type { Actor, Capability, Page } from './types';
 
 // The gateway's public route map, shared so the Worker and the static preview build behave the
@@ -92,5 +93,18 @@ export const WRITE_ROUTES: Record<string, WriteRoute> = {
   '/visit-files': {
     action: 'file.upload', capability: 'patients:read', schema: fileUploadSchema,
     demo: () => ({ fileRecordId: uuid(), scanStatus: 'PENDING_SCAN' })
+  },
+  // A read with a parameter, so it is a POST; it changes nothing.
+  '/visit-context': {
+    action: 'visit.context', capability: 'patients:read', schema: visitContextSchema,
+    demo: (input) => ({ visitId: input.visitId, patientName: 'นายตัวอย่าง หนึ่ง', visitType: 'เยี่ยมบ้านตาม Care Plan', visitDateTime: '2026-10-13T09:00:00+07:00', visitNumber: 3, visitorName: 'CG ตัวอย่าง' })
+  },
+  '/visit-images': {
+    action: 'visitImage.upload', capability: 'patients:read', schema: visitImageUploadSchema,
+    demo: () => ({ imageId: uuid(), url: '' })
+  },
+  '/visit-records': {
+    action: 'visitRecord.submit', capability: 'patients:read', schema: visitRecordSubmitSchema,
+    demo: () => ({ encounterId: uuid(), visitNumber: 3, status: 'SUBMITTED' })
   }
 };

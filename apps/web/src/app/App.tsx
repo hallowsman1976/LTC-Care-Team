@@ -9,7 +9,8 @@ import { getMe } from '../lib/api';
 import { ApiError } from '../lib/api';
 import { Login } from '../features/Login';
 import { Layout } from './Layout';
-import { AdlForm, CarePlanForm, ClassificationForm, PatientForm, VisitForm } from '../features/ClinicalForms';
+import { VisitRecordForm } from '../features/VisitRecordForm';
+import { AdlForm, CarePlanForm, ClassificationForm, PatientForm } from '../features/ClinicalForms';
 
 function UnsupportedBrowser() {
   return <main className="mx-auto max-w-lg p-6"><div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-6"><h1 className="text-xl font-bold text-red-900">เบราว์เซอร์ไม่รองรับ</h1><p className="mt-2 text-red-800">กรุณาอัปเดต Chrome/Edge 109+, Firefox 115 ESR+ หรือ Safari/iOS 16.4+ ระบบจะไม่โหลดข้อมูลผู้รับบริการบนเบราว์เซอร์นี้</p></div></main>;
@@ -33,7 +34,7 @@ export function App() {
     <Route path="patients/:id/adl/new" element={<AdlForm/>}/>
     <Route path="patients/:id/classification" element={<ClassificationForm/>}/>
     <Route path="care-plans/new" element={<CarePlanForm/>}/>
-    <Route path="visits/:id" element={<VisitForm/>}/>
+    <Route path="visits/:id" element={<VisitRecordForm/>}/>
     <Route path="settings/users" element={<Placeholder title="ผู้ใช้งานและสิทธิ์"/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/>
   </Route></Routes>;

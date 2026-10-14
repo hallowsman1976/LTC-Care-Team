@@ -7,6 +7,10 @@ describe('review details', () => {
       { label: 'อุณหภูมิ', value: '38.1 °C', outOfRange: true },
       { label: 'ชีพจร', value: '78 ครั้ง/นาที', outOfRange: false }
     ]);
+    expect(readVitals(JSON.stringify({ respiration: 24, systolic: 150, diastolic: 85 }))).toEqual([
+      { label: 'หายใจ', value: '24 ครั้ง/นาที', outOfRange: true },
+      { label: 'ความดันโลหิต', value: '150/85 mmHg', outOfRange: true }
+    ]);
     expect(readVitals('{}')).toEqual([]);
     expect(readVitals('not json')).toEqual([]);
   });

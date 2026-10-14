@@ -1,4 +1,5 @@
 import { getSpreadsheet, requireDemoMode } from './config';
+import { VISIT_IMAGE_COLUMNS, VISIT_RECORD_COLUMNS } from './services/visitRecords';
 
 export const SHEETS: Record<string, string[]> = {
   Settings: ['key', 'value', 'environment', 'updatedAt'],
@@ -30,8 +31,13 @@ export const SHEETS: Record<string, string[]> = {
   JobRuns: ['jobRunId', 'jobType', 'startedAt', 'finishedAt', 'status', 'processedCount', 'errorSummary'],
   IndexRegistry: ['keyType', 'keyValue', 'entityId', 'sourceSheet', 'rowHint', 'updatedAt'],
   GatewayNonces: ['nonce', 'expiresAtEpoch', 'receivedAt'],
-  Holidays: ['holidayId', 'localDate', 'name', 'active']
+  Holidays: ['holidayId', 'localDate', 'name', 'active'],
+  VisitImages: VISIT_IMAGE_COLUMNS,
+  Visit_Records: VISIT_RECORD_COLUMNS
 };
+
+/** Sheets that store typed-in text such as phone numbers and times: keep them as text (leading 0s). */
+const TEXT_SHEETS = ['VisitImages', 'Visit_Records'];
 
 export function initializeDemoWorkbook(requireDemo = true): { created: string[] } {
   if (requireDemo) requireDemoMode();
@@ -45,6 +51,7 @@ export function initializeDemoWorkbook(requireDemo = true): { created: string[] 
     }
     if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.setFrozenRows(1);
+    if (TEXT_SHEETS.includes(name)) sheet.getRange(1, 1, sheet.getMaxRows(), headers.length).setNumberFormat('@');
   }
   return { created };
 }

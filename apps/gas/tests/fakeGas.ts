@@ -26,10 +26,12 @@ export class FakeSheet {
   }
   getLastRow() { return this.rows.length; }
   getLastColumn() { return this.rows[0]?.length ?? 0; }
+  getMaxRows() { return Math.max(1000, this.rows.length); }
   getRange(row: number, column: number, rowCount = 1, columnCount = 1) {
     const sheet = this;
     return {
       getRow: () => row,
+      setNumberFormat: () => undefined,
       getValues: () => this.rows.slice(row - 1, row - 1 + rowCount).map((cells) => cells.slice(column - 1, column - 1 + columnCount)),
       setValues: (values: Cell[][]) => {
         values.forEach((cells, offset) => {
@@ -76,12 +78,14 @@ export interface FakeGasState {
   /** getDataRange() calls per sheet, to catch whole-sheet scans. */
   fullReads: Map<string, number>;
   now: Date;
+  /** Files created in Drive folders. */
+  files: Array<{ id: string; folderId: string; name: string; sharing: string }>;
   /** Hook for tests that need to observe writes. */
   onWrite?: (sheetName: string) => void;
 }
 
 export const fakeGas: FakeGasState = {
-  sheets: new Map(), properties: {}, cache: new Map(), lockDepth: 0, lockAcquisitions: 0, fullReads: new Map(), archives: new Map(), folders: new Map(), now: new Date()
+  sheets: new Map(), properties: {}, cache: new Map(), lockDepth: 0, lockAcquisitions: 0, fullReads: new Map(), archives: new Map(), folders: new Map(), files: [], now: new Date()
 };
 
 /** Installs the fake services with every workbook sheet created and headed. */
@@ -100,6 +104,7 @@ export function installFakeGas(properties: Record<string, string> = {}): FakeGas
   };
   fakeGas.archives = new Map();
   fakeGas.folders = new Map();
+  fakeGas.files = [];
   const archiveSpreadsheet = (id: string) => {
     const archive = fakeGas.archives.get(id);
     if (!archive) throw new Error(`fake: no spreadsheet ${id}`);
@@ -128,13 +133,19 @@ export function installFakeGas(properties: Record<string, string> = {}): FakeGas
   };
   const folder = (folderId: string) => ({
     getId: () => folderId,
-    createFile: () => ({ getId: () => `drive-${randomUUID()}` }),
+    createFile: (blob: { name?: string }) => {
+      const file = { id: `drive-${randomUUID()}`, folderId, name: blob?.name ?? '', sharing: 'PRIVATE' };
+      fakeGas.files.push(file);
+      return { getId: () => file.id, setSharing: (access: string) => { file.sharing = access; } };
+    },
     getFilesByName: (name: string) => {
       const matches = [...fakeGas.archives.entries()].filter(([, archive]) => archive.name === name && archive.folderId === folderId).map(([id]) => id);
       return { hasNext: () => matches.length > 0, next: () => ({ getId: () => matches.shift()! }) };
     }
   });
   globals.DriveApp = {
+    Access: { ANYONE_WITH_LINK: 'ANYONE_WITH_LINK' },
+    Permission: { VIEW: 'VIEW' },
     getFolderById: (folderId: string) => folder(folderId),
     getFileById: (id: string) => ({ moveTo: (target: { getId(): string }) => { fakeGas.archives.get(id)!.folderId = target.getId(); } })
   };
@@ -150,12 +161,13 @@ export function installFakeGas(properties: Record<string, string> = {}): FakeGas
     computeHmacSha256Signature: (value: string | number[], key: string | number[]) => toSigned(createHmac('sha256', toBuffer(key)).update(toBuffer(value)).digest()),
     base64Encode: (value: string | number[]) => toBuffer(value).toString('base64'),
     base64Decode: (value: string) => toSigned(Buffer.from(value, 'base64')),
-    newBlob: (value: string | number[]) => ({ getBytes: () => toSigned(toBuffer(value)) }),
+    newBlob: (value: string | number[], _mimeType?: string, name?: string) => ({ name, getBytes: () => toSigned(toBuffer(value)) }),
     formatDate: (date: Date, timeZone: string, format: string) => {
       const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' })
         .formatToParts(date).map((part) => [part.type, part.value]));
       if (format === 'yyyy-MM-dd') return `${parts.year}-${parts.month}-${parts.day}`;
       if (format === 'yyyy-MM') return `${parts.year}-${parts.month}`;
+      if (format === 'yyyyMMdd-HHmmss') return `${parts.year}${parts.month}${parts.day}-000000`;
       if (format === 'd') return String(Number(parts.day));
       if (format === 'u') return String(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(String(parts.weekday)) + 1);
       throw new Error(`fake formatDate: unsupported ${format}`);

@@ -9,3 +9,4 @@ button, input, select, textarea, a { min-height: 44px; }
 :focus-visible { outline: 3px solid #0284C7; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
 
+.swal2-popup { font-family: inherit; border-radius: 1rem; }

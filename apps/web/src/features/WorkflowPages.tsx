@@ -73,11 +73,15 @@ function minutesBetween(start?: string, end?: string): number | null {
 }
 
 export function readVitals(json?: string): Array<{ label: string; value: string; outOfRange: boolean }> {
-  let vitals: { temperature?: number; pulse?: number } = {};
+  let vitals: { temperature?: number; pulse?: number; respiration?: number; systolic?: number; diastolic?: number } = {};
   try { vitals = JSON.parse(json || '{}') as typeof vitals; } catch { return []; }
   const rows: Array<{ label: string; value: string; outOfRange: boolean }> = [];
   if (typeof vitals.temperature === 'number') rows.push({ label: 'อุณหภูมิ', value: `${vitals.temperature} °C`, outOfRange: vitals.temperature < 35.5 || vitals.temperature >= 37.5 });
   if (typeof vitals.pulse === 'number') rows.push({ label: 'ชีพจร', value: `${vitals.pulse} ครั้ง/นาที`, outOfRange: vitals.pulse < 60 || vitals.pulse > 100 });
+  if (typeof vitals.respiration === 'number') rows.push({ label: 'หายใจ', value: `${vitals.respiration} ครั้ง/นาที`, outOfRange: vitals.respiration < 12 || vitals.respiration > 20 });
+  if (typeof vitals.systolic === 'number' && typeof vitals.diastolic === 'number') {
+    rows.push({ label: 'ความดันโลหิต', value: `${vitals.systolic}/${vitals.diastolic} mmHg`, outOfRange: vitals.systolic >= 140 || vitals.diastolic >= 90 || vitals.systolic < 90 || vitals.diastolic < 60 });
+  }
   return rows;
 }
 

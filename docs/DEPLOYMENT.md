@@ -14,6 +14,7 @@ The web app proxies `/api` to `127.0.0.1:8787`. In this local setup the role swi
 
 1. Create a new spreadsheet and private quarantine Drive folder using synthetic data only.
 2. Set Script Properties: `APP_MODE=DEMO`, `SPREADSHEET_ID`, `GATEWAY_ASSERTION_SECRET`, `PASSWORD_PEPPER`, `QUARANTINE_FOLDER_ID`.
+   For the home-visit record form also set `OLDER_IMAGE_FOLDER_ID`, `SERVICE_IMAGE_FOLDER_ID` and `SIGNATURE_FOLDER_ID` (Drive folders for patient photos, care-activity photos and signatures), then run `initializeDemoWorkbook` once to add the `VisitImages` and `Visit_Records` sheets (kept as plain text so phone numbers keep their leading 0) and approve the Drive permission prompt. In DEMO the images are shared by link so the stored `https://lh3.googleusercontent.com/d/<id>` URLs open; in PILOT they stay private and an upload needs the patient's recorded consent.
 3. Run `pnpm --filter @smart-ltc/gas build`.
 4. Configure `.clasp.json` locally and run `pnpm --filter @smart-ltc/gas push`.
 5. Execute `initializeDemoWorkbook` once, add demo rows to `Users` (and `StaffProfiles` for CM), then create sign-in accounts as described in `scripts/seed-demo/README.md`.

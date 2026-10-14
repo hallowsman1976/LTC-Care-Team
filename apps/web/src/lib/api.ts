@@ -46,6 +46,34 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const post = <T>(path: string, body: unknown) => api<T>(path, { method: 'POST', body: JSON.stringify(body) });
 
+/**
+ * POST with upload progress (0–100), for large bodies such as images. fetch cannot report upload
+ * progress, so this uses XMLHttpRequest with the same headers and envelope handling as api().
+ */
+export function postWithProgress<T>(path: string, body: unknown, onProgress: (percent: number) => void): Promise<T> {
+  if (isStaticPreview) {
+    onProgress(100);
+    return post<T>(path, body);
+  }
+  return new Promise<T>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open('POST', `${API_BASE}${path}`);
+    request.withCredentials = true;
+    request.setRequestHeader('content-type', 'application/json');
+    request.setRequestHeader('x-ltc-request', '1');
+    if (isLocalDemo) request.setRequestHeader('x-demo-role', getDemoRole());
+    request.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100)); };
+    request.onerror = () => reject(new ApiError('NETWORK_ERROR', 0, 'ไม่สามารถติดต่อระบบได้'));
+    request.onload = () => {
+      let envelope: ApiEnvelope<T>;
+      try { envelope = JSON.parse(request.responseText) as ApiEnvelope<T>; } catch { reject(new ApiError('NETWORK_ERROR', request.status, 'ไม่สามารถติดต่อระบบได้')); return; }
+      if (request.status >= 400 || !envelope.ok || envelope.data === null) reject(new ApiError(envelope.code, request.status, envelope.message || envelope.code));
+      else resolve(envelope.data);
+    };
+    request.send(JSON.stringify(body));
+  });
+}
+
 /** Today's date in Bangkok as yyyy-MM-dd (toISOString would give yesterday before 07:00). */
 export const todayInBangkok = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
 

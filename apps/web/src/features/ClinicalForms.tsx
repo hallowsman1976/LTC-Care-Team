@@ -54,48 +54,48 @@ export function PatientForm() {
 
 type AdlKey = keyof z.infer<typeof adlAssessmentItemsSchema>;
 
-/** Barthel ADL: what each score means, so assessors score observed ability the same way. */
+/** Barthel ADL in the unit's own wording (transfer levels in the standard order: more help, fewer points). */
 export const ADL_ITEMS: Array<{ key: AdlKey; title: string; hint?: string; levels: string[] }> = [
-  { key: 'feeding', title: '1. การรับประทานอาหาร', hint: 'เมื่อเตรียมสำรับไว้ให้เรียบร้อยต่อหน้า', levels: [
-    'ตักอาหารเข้าปากเองไม่ได้ ต้องมีคนป้อนให้',
-    'ตักอาหารเองได้แต่ต้องมีคนช่วย เช่น ช่วยตักเตรียมไว้หรือตัดเป็นชิ้นเล็กให้ก่อน',
+  { key: 'feeding', title: '1. รับประทานอาหาร', hint: 'เมื่อเตรียมสำรับไว้ให้เรียบร้อยต่อหน้า', levels: [
+    'ไม่สามารถตักอาหารเข้าปากได้',
+    'ตักอาหารเองได้ แต่ต้องมีคนช่วย เช่น ช่วยใช้ช้อนตักเตรียมให้/ตัดเป็นชิ้นเล็ก ๆ ให้',
     'ตักอาหารและช่วยตัวเองได้เป็นปกติ'] },
-  { key: 'grooming', title: '2. การล้างหน้า หวีผม แปรงฟัน โกนหนวด', hint: 'ในช่วง 24–48 ชั่วโมงที่ผ่านมา', levels: [
-    'ต้องมีคนช่วย',
-    'ทำได้เอง (รวมถึงกรณีที่มีคนเตรียมอุปกรณ์ไว้ให้)'] },
-  { key: 'transfer', title: '3. การลุกนั่งจากที่นอน หรือจากเตียงไปเก้าอี้', levels: [
-    'นั่งไม่ได้ (นั่งแล้วล้ม) หรือต้องใช้คน 2 คนช่วยยกขึ้น',
-    'ต้องช่วยมากจึงนั่งได้ เช่น ใช้คนที่มีทักษะ 1 คน หรือคนทั่วไป 2 คนพยุงหรือดันขึ้น',
-    'ต้องช่วยบ้าง เช่น บอกให้ทำตาม ช่วยพยุงเล็กน้อย หรือคอยดูแลเพื่อความปลอดภัย',
+  { key: 'grooming', title: '2. ล้างหน้า หวีผม แปรงฟัน โกนหนวด', hint: 'ในระยะเวลา 24–48 ชั่วโมงที่ผ่านมา', levels: [
+    'ต้องการความช่วยเหลือ',
+    'ทำเองได้ (รวมทั้งที่ทำได้เองถ้าเตรียมอุปกรณ์ไว้ให้)'] },
+  { key: 'transfer', title: '3. ลุกนั่งจากที่นอน หรือจากเตียงไปยังเก้าอี้', levels: [
+    'ไม่สามารถนั่งได้ (นั่งแล้วจะล้มเสมอ) หรือต้องใช้คนสองคนช่วยกันยกขึ้น',
+    'ต้องการความช่วยเหลืออย่างมากจึงจะนั่งได้ เช่น ต้องใช้คนที่แข็งแรงหรือมีทักษะ 1 คน หรือใช้คนทั่วไป 2 คนพยุงหรือดันขึ้นมาจึงจะนั่งอยู่ได้',
+    'ต้องการความช่วยเหลือบ้าง เช่น บอกให้ทำตาม หรือช่วยพยุงเล็กน้อย หรือต้องมีคนดูแลเพื่อความปลอดภัย',
     'ทำได้เอง'] },
   { key: 'toiletUse', title: '4. การใช้ห้องน้ำ', levels: [
     'ช่วยตัวเองไม่ได้',
-    'ทำเองได้บ้าง (อย่างน้อยทำความสะอาดตัวเองหลังเสร็จธุระได้) แต่ต้องช่วยในบางขั้นตอน',
-    'ช่วยตัวเองได้ดี ขึ้นลงโถส้วม ทำความสะอาด และจัดเสื้อผ้าได้เอง'] },
+    'ทำเองได้บ้าง (อย่างน้อยทำความสะอาดตัวเองได้หลังจากเสร็จธุระ) แต่ต้องการความช่วยเหลือในบางสิ่ง',
+    'ช่วยตัวเองได้ดี (ขึ้นนั่งและลงจากโถส้วมเองได้ ทำความสะอาดได้เรียบร้อยหลังจากเสร็จธุระ ถอดใส่เสื้อผ้าได้เรียบร้อย)'] },
   { key: 'mobility', title: '5. การเคลื่อนที่ภายในห้องหรือบ้าน', levels: [
     'เคลื่อนที่ไปไหนไม่ได้',
-    'ใช้รถเข็นเคลื่อนที่ได้เองโดยไม่ต้องมีคนเข็น และเข้าออกมุมห้องหรือประตูได้',
-    'เดินหรือเคลื่อนที่โดยมีคนช่วย เช่น พยุง บอกให้ทำตาม หรือคอยดูแลเพื่อความปลอดภัย',
+    'ต้องใช้รถเข็นช่วยตัวเองให้เคลื่อนที่ได้เอง (ไม่ต้องมีคนเข็นให้) และจะต้องเข้าออกมุมห้องหรือประตูได้',
+    'เดินหรือเคลื่อนที่โดยมีคนช่วย เช่น พยุง หรือบอกให้ทำตาม หรือต้องให้ความสนใจดูแลเพื่อความปลอดภัย',
     'เดินหรือเคลื่อนที่ได้เอง'] },
   { key: 'dressing', title: '6. การสวมใส่เสื้อผ้า', levels: [
-    'ต้องมีคนสวมใส่ให้ ช่วยตัวเองแทบไม่ได้',
-    'ช่วยตัวเองได้ประมาณครึ่งหนึ่ง ที่เหลือต้องมีคนช่วย',
-    'ช่วยตัวเองได้ดี รวมทั้งติดกระดุม รูดซิป หรือใช้เสื้อผ้าที่ดัดแปลงให้เหมาะสม'] },
+    'ต้องมีคนสวมใส่ให้ ช่วยตัวเองแทบไม่ได้หรือได้น้อย',
+    'ช่วยตัวเองได้ประมาณร้อยละ 50 ที่เหลือต้องมีคนช่วย',
+    'ช่วยตัวเองได้ดี (รวมทั้งการติดกระดุม รูดซิบ หรือใช้เสื้อผ้าที่ดัดแปลงให้เหมาะสมก็ได้)'] },
   { key: 'stairs', title: '7. การขึ้นลงบันได 1 ชั้น', levels: [
-    'ทำไม่ได้',
-    'ต้องมีคนช่วย',
-    'ขึ้นลงได้เอง (ถ้าใช้เครื่องช่วยเดิน ต้องนำขึ้นลงได้เองด้วย)'] },
+    'ไม่สามารถทำได้',
+    'ต้องการคนช่วย',
+    'ขึ้นลงได้เอง (ถ้าต้องใช้เครื่องช่วยเดิน เช่น walker จะต้องเอาขึ้นลงได้ด้วย)'] },
   { key: 'bathing', title: '8. การอาบน้ำ', levels: [
     'ต้องมีคนช่วยหรือทำให้',
-    'อาบน้ำได้เอง'] },
-  { key: 'bowels', title: '9. การกลั้นอุจจาระ', hint: 'ในช่วง 1 สัปดาห์ที่ผ่านมา', levels: [
-    'กลั้นไม่ได้ หรือต้องสวนอุจจาระเป็นประจำ',
-    'กลั้นไม่ได้บางครั้ง (น้อยกว่าสัปดาห์ละ 1 ครั้ง)',
+    'อาบน้ำเองได้'] },
+  { key: 'bowels', title: '9. การกลั้นการถ่ายอุจจาระ', hint: 'ในระยะ 1 สัปดาห์ที่ผ่านมา', levels: [
+    'กลั้นไม่ได้ หรือต้องการการสวนอุจจาระอยู่เสมอ',
+    'กลั้นไม่ได้บางครั้ง (เป็นน้อยกว่า 1 ครั้งต่อสัปดาห์)',
     'กลั้นได้ปกติ'] },
-  { key: 'bladder', title: '10. การกลั้นปัสสาวะ', hint: 'ในช่วง 1 สัปดาห์ที่ผ่านมา', levels: [
-    'กลั้นไม่ได้ หรือใส่สายสวนปัสสาวะแต่ดูแลเองไม่ได้',
-    'กลั้นไม่ได้บางครั้ง (น้อยกว่าวันละ 1 ครั้ง)',
-    'กลั้นได้ปกติ'] }
+  { key: 'bladder', title: '10. การกลั้นปัสสาวะ', hint: 'ในระยะ 1 สัปดาห์ที่ผ่านมา', levels: [
+    'กลั้นไม่ได้ หรือใส่สายสวนปัสสาวะแต่ไม่สามารถดูแลเองได้',
+    'กลั้นไม่ได้บางครั้ง (เป็นน้อยกว่าวันละ 1 ครั้ง)',
+    'กลั้นได้เป็นปกติ'] }
 ];
 
 interface PatientName { patientId: string; fullName: string; localCode?: string; hn?: string }
@@ -143,7 +143,7 @@ const classificationSchema = ltcObservationSchema.extend({
 
 type Observation = z.infer<typeof ltcObservationSchema>;
 
-interface Choice<T> { value: T; label: string; detail: string }
+export interface Choice<T> { value: T; label: string; detail: string }
 
 const UNKNOWN_CHOICE = { value: 'UNKNOWN', label: 'ยังไม่ทราบ / ยังไม่ได้ประเมิน', detail: 'ระบบจะไม่แนะนำกลุ่มจนกว่าจะประเมินข้อนี้' } as const;
 
@@ -179,7 +179,7 @@ const SUGGESTION_REASONS: Record<string, string> = {
   MOBILE_NO_COGNITIVE_DISTURBANCE: 'ยังเคลื่อนไหวได้ และไม่มีภาวะสับสนทางสมอง'
 };
 
-function ChoiceCards<T extends string | number>({ name, choices, selected, highlight, onSelect }: { name: string; choices: Array<Choice<T>>; selected: T | undefined; highlight?: T | null; onSelect: (value: T) => void }) {
+export function ChoiceCards<T extends string | number>({ name, choices, selected, highlight, onSelect }: { name: string; choices: Array<Choice<T>>; selected: T | undefined; highlight?: T | null; onSelect: (value: T) => void }) {
   return <div className="mt-1 space-y-2">{choices.map((choice) => <label key={String(choice.value)} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${selected === choice.value ? 'border-primary bg-sky-50' : 'border-slate-200'}`}>
     <input type="radio" name={name} checked={selected === choice.value} onChange={() => onSelect(choice.value)} className="mt-1 h-5 w-5"/>
     <span className="flex-1"><span className="font-semibold">{choice.label}</span>{highlight === choice.value && <span className="ml-2"><Status tone="warning">ระบบแนะนำ</Status></span>}<span className="block text-sm text-slate-600">{choice.detail}</span></span>
@@ -365,131 +365,6 @@ export function CarePlanForm() {
 
       <div><Button type="submit" disabled={form.formState.isSubmitting || draft !== null}>บันทึกร่าง</Button><OutcomeMessage outcome={outcome}/></div>
       {draft && <ActivatePlan plan={draft}/>}
-    </form>
-  </FormPage>;
-}
-
-const visitSchema = z.object({
-  startedAt: z.string().min(1, 'กรุณาระบุเวลาเริ่ม'), endedAt: z.string().min(1, 'กรุณาระบุเวลาเสร็จ'), activityCompleted: z.boolean(), notes: z.string().max(1500, 'ไม่เกิน 1,500 ตัวอักษร'),
-  temperature: optionalNumber(z.number().min(30, 'ค่าต่ำผิดปกติ ตรวจสอบการวัดอีกครั้ง').max(45, 'ค่าสูงผิดปกติ ตรวจสอบการวัดอีกครั้ง')),
-  pulse: optionalNumber(z.number().int('ใส่เป็นจำนวนเต็ม').min(20, 'ค่าต่ำผิดปกติ ตรวจสอบการวัดอีกครั้ง').max(250, 'ค่าสูงผิดปกติ ตรวจสอบการวัดอีกครั้ง')),
-  urgentFlag: z.boolean()
-}).refine((visit) => !visit.startedAt || !visit.endedAt || visit.endedAt > visit.startedAt, { path: ['endedAt'], message: 'เวลาเสร็จต้องหลังเวลาเริ่ม' });
-type VisitValues = z.infer<typeof visitSchema>;
-
-type ActivityStatus = 'DONE' | 'PARTIAL' | 'NOT_DONE';
-
-const ACTIVITY_CHOICES: Array<Choice<ActivityStatus>> = [
-  { value: 'DONE', label: 'ทำครบตามแผน', detail: 'ทำกิจกรรมตามคำแนะนำใน Care Plan ได้ครบทุกข้อ' },
-  { value: 'PARTIAL', label: 'ทำได้บางส่วน', detail: 'ทำได้ไม่ครบ ระบุเหตุผลด้านล่าง' },
-  { value: 'NOT_DONE', label: 'ไม่ได้ทำ', detail: 'เช่น ผู้ป่วยไม่อยู่ ปฏิเสธ หรือไม่พร้อม ระบุเหตุผลด้านล่าง' }
-];
-const INCOMPLETE_REASONS = ['ผู้ป่วยปฏิเสธ', 'ผู้ป่วยเหนื่อยหรือไม่สุขสบาย', 'ผู้ป่วยไม่อยู่บ้าน', 'ไม่มีญาติอยู่ด้วย', 'อุปกรณ์ไม่พร้อม', 'หมดเวลา'];
-
-/** Quick observations; the chosen answers are written into the visit notes for the CM. */
-export const VISIT_OBSERVATIONS: Array<{ key: string; title: string; options: string[] }> = [
-  { key: 'general', title: 'อาการทั่วไป', options: ['ปกติ เหมือนเดิม', 'อ่อนเพลียกว่าเดิม', 'ซึมลงหรือสับสนกว่าเดิม', 'ดีขึ้นกว่าเดิม'] },
-  { key: 'eating', title: 'การกินอาหารและน้ำ', options: ['กินได้ปกติ', 'กินได้น้อยลง', 'กินไม่ได้ / ดื่มน้ำน้อยมาก'] },
-  { key: 'sleep', title: 'การนอน', options: ['นอนหลับได้', 'นอนไม่ค่อยหลับ', 'ง่วงซึมมากผิดปกติ'] },
-  { key: 'elimination', title: 'การขับถ่าย', options: ['ปกติ', 'ท้องผูก', 'ท้องเสีย', 'ปัสสาวะผิดปกติ'] },
-  { key: 'skin', title: 'ผิวหนังและแผล', options: ['ไม่มีแผล', 'มีรอยแดงบริเวณที่ถูกกดทับ', 'มีแผลเดิม อาการคงที่', 'มีแผลใหม่หรือแผลแย่ลง'] },
-  { key: 'mood', title: 'อารมณ์และจิตใจ', options: ['ปกติ', 'เศร้าหรือเงียบลง', 'หงุดหงิดหรือกระวนกระวาย'] }
-];
-
-const URGENT_EXAMPLES = 'เช่น มีไข้ ซึมลงหรือสับสนมากขึ้น กินไม่ได้ หกล้ม มีแผลใหม่หรือแผลแย่ลง ญาติไม่สามารถดูแลต่อได้';
-
-interface VisitSummary { visitId: string; visitDateTime: string; visitType?: string; patientName?: string }
-
-const nowInBangkok = () => new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).replace(' ', 'T').slice(0, 16);
-
-/** The typical adult resting range; outside it the caregiver is prompted, never told a diagnosis. */
-function vitalsNotice(temperature: unknown, pulse: unknown): string | null {
-  const temp = Number(temperature);
-  const rate = Number(pulse);
-  const notes: string[] = [];
-  if (temperature !== '' && temperature != null && Number.isFinite(temp) && (temp < 35.5 || temp >= 37.5)) notes.push('อุณหภูมิอยู่นอกช่วงปกติทั่วไป (35.5–37.4 °C)');
-  if (pulse !== '' && pulse != null && Number.isFinite(rate) && (rate < 60 || rate > 100)) notes.push('ชีพจรอยู่นอกช่วงปกติทั่วไปขณะพัก (60–100 ครั้ง/นาที)');
-  return notes.length ? `${notes.join(' และ')} วัดซ้ำอีกครั้ง หากยังผิดปกติให้เลือก "มีเรื่องที่ CM ควรรู้โดยเร็ว"` : null;
-}
-
-export function composeVisitNotes(activity: ActivityStatus, reasons: string[], observations: Record<string, string>, freeText: string): string {
-  const lines: string[] = [];
-  const activityLabel = ACTIVITY_CHOICES.find((choice) => choice.value === activity)?.label;
-  if (activityLabel) lines.push(`กิจกรรม: ${activityLabel}${activity !== 'DONE' && reasons.length ? ` (${reasons.join(', ')})` : ''}`);
-  for (const { key, title } of VISIT_OBSERVATIONS) if (observations[key]) lines.push(`${title}: ${observations[key]}`);
-  if (freeText.trim()) lines.push(`บันทึกเพิ่มเติม: ${freeText.trim()}`);
-  return lines.join('\n');
-}
-
-export function VisitForm() {
-  const { id: visitId = '' } = useParams();
-  const [outcome, setOutcome] = useState<Outcome>(null);
-  const [activity, setActivity] = useState<ActivityStatus | null>(null);
-  const [reasons, setReasons] = useState<string[]>([]);
-  const [observations, setObservations] = useState<Record<string, string>>({});
-  const [formError, setFormError] = useState('');
-  const visits = useQuery({ queryKey: ['visits'], queryFn: () => api<Page<VisitSummary>>('/visits') });
-  const visit = visits.data?.items.find((item) => item.visitId === visitId);
-  const form = useForm<VisitValues>({ resolver: zodResolver(visitSchema), defaultValues: { startedAt: '', endedAt: '', activityCompleted: false, notes: '', urgentFlag: false } });
-  const { temperature, pulse, urgentFlag } = form.watch();
-  const errors = form.formState.errors;
-  const notice = vitalsNotice(temperature, pulse);
-  const submit = form.handleSubmit(({ temperature: measuredTemperature, pulse: measuredPulse, notes, ...values }) => {
-    if (!activity) { setFormError('กรุณาเลือกผลการทำกิจกรรม'); return; }
-    if (activity !== 'DONE' && !reasons.length && !notes.trim()) { setFormError('กรุณาระบุเหตุผลที่ทำกิจกรรมไม่ครบ'); return; }
-    setFormError('');
-    return attempt(setOutcome, () => post('/visit-encounters', {
-      visitId, submissionId: crypto.randomUUID(), source: 'ONLINE', ...values, activityCompleted: activity === 'DONE',
-      notes: composeVisitNotes(activity, reasons, observations, notes),
-      vitals: { ...(measuredTemperature === undefined ? {} : { temperature: measuredTemperature }), ...(measuredPulse === undefined ? {} : { pulse: measuredPulse }) }
-    }), 'ส่งบันทึกแล้ว รอ CM ตรวจทาน');
-  });
-  const toggleReason = (reason: string) => setReasons((current) => current.includes(reason) ? current.filter((item) => item !== reason) : [...current, reason]);
-  return <FormPage title="บันทึกการเยี่ยม" description="บันทึกตามที่พบจริง เมื่อส่งแล้วจะแก้ไขไม่ได้ จนกว่า CM จะส่งคืนให้แก้">
-    <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-3">
-      <p className="text-sm text-slate-600">ผู้รับบริการ</p>
-      <p className="text-lg font-bold">{visit?.patientName || (visits.isLoading ? 'กำลังโหลด…' : 'ไม่พบข้อมูลนัดนี้ในรายการ')}</p>
-      {visit && <p className="text-sm text-slate-600">{visit.visitType || 'เยี่ยมตาม Care Plan'} · นัด {new Date(visit.visitDateTime).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })}</p>}
-    </div>
-    <form onSubmit={submit} className="space-y-4">
-      <fieldset className="rounded-xl border border-slate-200 p-3">
-        <legend className="px-1 font-bold">1. เวลาเยี่ยมจริง</legend>
-        <div className="grid gap-3 md:grid-cols-2">
-          {([['startedAt', 'เริ่ม'], ['endedAt', 'เสร็จ']] as const).map(([name, label]) => <label key={name} className={labelClass}>{label}<div className="mt-1 flex gap-2"><input type="datetime-local" {...form.register(name)} className={`${fieldClass} mt-0`}/><button type="button" onClick={() => form.setValue(name, nowInBangkok(), { shouldValidate: form.formState.isSubmitted })} className={`${chipClass} whitespace-nowrap`}>ตอนนี้</button></div><span className="text-xs text-danger">{errors[name]?.message}</span></label>)}
-        </div>
-      </fieldset>
-
-      <fieldset className="rounded-xl border border-slate-200 p-3">
-        <legend className="px-1 font-bold">2. สัญญาณชีพ (ถ้าวัด)</legend>
-        <p className="text-sm text-slate-500">เว้นว่างได้ถ้าไม่ได้วัด ระบบไม่บันทึกเป็นศูนย์</p>
-        <div className="mt-2 grid gap-3 md:grid-cols-2">
-          <label className={labelClass}>อุณหภูมิร่างกาย (°C)<span className={hintClass}>ช่วงปกติทั่วไป 35.5–37.4 °C</span><input type="number" step="0.1" inputMode="decimal" placeholder="เช่น 36.8" {...form.register('temperature')} className={fieldClass}/><span className="text-xs text-danger">{errors.temperature?.message}</span></label>
-          <label className={labelClass}>ชีพจร (ครั้ง/นาที)<span className={hintClass}>ช่วงปกติทั่วไปขณะพัก 60–100 ครั้ง/นาที</span><input type="number" inputMode="numeric" placeholder="เช่น 78" {...form.register('pulse')} className={fieldClass}/><span className="text-xs text-danger">{errors.pulse?.message}</span></label>
-        </div>
-        {notice && <p role="note" className="mt-2 rounded-lg bg-amber-50 p-2 text-sm text-amber-900">{notice}</p>}
-      </fieldset>
-
-      <fieldset className="rounded-xl border border-slate-200 p-3">
-        <legend className="px-1 font-bold">3. ผลการทำกิจกรรมตามแผน</legend>
-        <ChoiceCards name="activity" choices={ACTIVITY_CHOICES} selected={activity ?? undefined} onSelect={setActivity}/>
-        {activity && activity !== 'DONE' && <div className="mt-3"><p className={labelClass}>เหตุผล (เลือกได้หลายข้อ)</p><div className="mt-2 flex flex-wrap gap-2">{INCOMPLETE_REASONS.map((reason) => <button key={reason} type="button" aria-pressed={reasons.includes(reason)} onClick={() => toggleReason(reason)} className={`${chipClass} ${reasons.includes(reason) ? 'border-primary bg-sky-50 font-semibold' : ''}`}>{reason}</button>)}</div></div>}
-      </fieldset>
-
-      <fieldset className="rounded-xl border border-slate-200 p-3">
-        <legend className="px-1 font-bold">4. สิ่งที่สังเกตพบ</legend>
-        <p className="text-sm text-slate-500">เลือกข้อที่ตรงที่สุด ข้อที่ไม่ได้สังเกตเว้นไว้ได้ กดซ้ำเพื่อยกเลิก</p>
-        <div className="mt-2 space-y-3">{VISIT_OBSERVATIONS.map(({ key, title, options }) => <div key={key}><p className="text-sm font-semibold text-slate-700">{title}</p><div className="mt-1 flex flex-wrap gap-2">{options.map((option) => { const chosen = observations[key] === option; return <button key={option} type="button" aria-pressed={chosen} onClick={() => setObservations((current) => ({ ...current, [key]: chosen ? '' : option }))} className={`${chipClass} ${chosen ? 'border-primary bg-sky-50 font-semibold' : ''}`}>{option}</button>; })}</div></div>)}</div>
-        <label className={`${labelClass} mt-3`}>บันทึกเพิ่มเติม<span className={hintClass}>สิ่งที่ทำ สิ่งที่พบ หรือคำพูดของผู้ป่วยและญาติที่ CM ควรรู้</span><textarea {...form.register('notes')} className={fieldClass}/><span className="text-xs text-danger">{errors.notes?.message}</span></label>
-      </fieldset>
-
-      <fieldset className="rounded-xl border border-slate-200 p-3">
-        <legend className="px-1 font-bold">5. เรื่องเร่งด่วน</legend>
-        <ChoiceCards name="urgentFlag" choices={[{ value: 'NO', label: 'ไม่มีเรื่องเร่งด่วน', detail: 'CM จะเห็นบันทึกนี้ตามรอบการตรวจทานปกติ' }, { value: 'YES', label: 'มีเรื่องที่ CM ควรรู้โดยเร็ว', detail: `ระบบจะแจ้งเตือน CM ทันทีที่ส่ง ${URGENT_EXAMPLES}` }]} selected={urgentFlag ? 'YES' : 'NO'} onSelect={(value) => form.setValue('urgentFlag', value === 'YES')}/>
-        <p className="mt-3 rounded-lg bg-red-50 p-2 text-sm font-semibold text-red-800">ภาวะฉุกเฉิน เช่น หมดสติ หายใจลำบาก เจ็บหน้าอก ชัก หรือเลือดออกมาก ให้โทร 1669 ทันที ไม่ต้องรอระบบ</p>
-      </fieldset>
-
-      {formError && <ErrorState message={formError}/>}
-      <Button type="submit" disabled={form.formState.isSubmitting || outcome?.tone === 'success'}>ตรวจทานและส่ง</Button><OutcomeMessage outcome={outcome}/>
     </form>
   </FormPage>;
 }
