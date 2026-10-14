@@ -1,18 +1,20 @@
-import { Bell, CalendarDays, ClipboardList, Home, LogOut, Users } from 'lucide-react';
+import { Bell, CalendarDays, ClipboardCheck, ClipboardList, Home, LogOut, Users } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import type { Actor, Role } from '@smart-ltc/shared';
 import { appHref, appMode, canSwitchDemoRole, getDemoRole, isDemoMode, isStaticPreview, logout, setDemoRole } from '../lib/api';
 
-const nav = [
+const allNav = [
   { to: '/', label: 'หน้าหลัก', icon: Home },
   { to: '/patients', label: 'ผู้รับบริการ', icon: Users },
   { to: '/visits', label: 'งานเยี่ยม', icon: ClipboardList },
+  { to: '/reviews', label: 'ตรวจทาน', icon: ClipboardCheck, capability: 'encounter:review' },
   { to: '/calendar', label: 'ปฏิทิน', icon: CalendarDays },
   { to: '/alerts', label: 'แจ้งเตือน', icon: Bell }
-];
+] as const;
 
 export function Layout({ actor }: { actor: Actor }) {
   const navigate = useNavigate();
+  const nav = allNav.filter((item) => !('capability' in item) || actor.capabilities.includes(item.capability));
   const switchRole = (role: Lowercase<Role>) => { setDemoRole(role); navigate(0); };
   const signOut = async () => { await logout(); window.location.assign(appHref('/')); };
   return (

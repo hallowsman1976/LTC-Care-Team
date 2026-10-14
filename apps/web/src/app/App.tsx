@@ -27,7 +27,7 @@ export function App() {
   return <Routes><Route element={<Layout actor={actor}/>}>
     <Route index element={<Dashboard actor={actor}/>}/>
     <Route path="patients" element={<Patients actor={actor}/>}/>
-    <Route path="visits" element={<Visits/>}/><Route path="calendar" element={<Calendar/>}/>
+    <Route path="visits" element={<Visits actor={actor}/>}/><Route path="calendar" element={<Calendar/>}/>
     <Route path="alerts" element={<Alerts/>}/><Route path="reviews" element={<Reviews/>}/>
     <Route path="patients/new" element={<PatientForm/>}/>
     <Route path="patients/:id/adl/new" element={<AdlForm/>}/>

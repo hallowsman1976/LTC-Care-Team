@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import { adlAssessmentItemsSchema, calculateAdlTotal, ltcObservationSchema, patientCreateSchema, suggestLtcGroup } from '@smart-ltc/shared';
 import { isDemoMode, post, todayInBangkok } from '../lib/api';
@@ -131,13 +131,38 @@ export function toCarePlanRequest(values: CarePlanValues) {
   };
 }
 
-export function CarePlanForm() {
+/** The sample ruleset added by the GAS seedDemoData function; PILOT has no default. */
+const DEMO_RULESET_ID = 'rs-demo-2569';
+
+interface DraftPlan { carePlanId: string; recordVersion: number }
+
+/** Approving a draft is a separate, deliberate step: GAS checks the activation conditions. */
+function ActivatePlan({ plan }: { plan: DraftPlan }) {
+  const [rationale, setRationale] = useState('');
   const [outcome, setOutcome] = useState<Outcome>(null);
-  const form = useForm<CarePlanValues>({ resolver: zodResolver(carePlanSchema), defaultValues: { patientId: '', rulesetId: '', effectiveFrom: '', effectiveTo: '', goalsSummary: '', serviceType: '', instructions: '', unit: 'WEEK', weekdays: [], windowStart: '09:00', windowEnd: '12:00' } });
+  const [busy, setBusy] = useState(false);
+  const activate = async () => {
+    setBusy(true);
+    await attempt(setOutcome, () => post('/care-plans/activate', { carePlanId: plan.carePlanId, recordVersion: Number(plan.recordVersion), approvalRationale: rationale.trim() }), 'อนุมัติแผนแล้ว ตารางเยี่ยมจะถูกสร้างเมื่อรันตัวจัดตาราง');
+    setBusy(false);
+  };
+  return <div className="mt-4 space-y-3 rounded-xl border border-sky-200 bg-sky-50 p-4 md:col-span-2">
+    <p className="font-bold">ร่างแผนพร้อมอนุมัติ</p>
+    <p className="text-sm text-slate-600">ต้องมีผลจัดกลุ่มที่ยืนยันแล้วและผู้ดูแลที่ได้รับมอบหมาย หากอนุมัติแผนที่ตนเองสร้าง ต้องระบุเหตุผลอย่างน้อย 10 ตัวอักษร</p>
+    <label className={labelClass}>เหตุผลการอนุมัติ<textarea value={rationale} onChange={(event) => setRationale(event.target.value)} className={fieldClass}/></label>
+    <Button type="button" disabled={busy || outcome?.tone === 'success'} onClick={activate}>อนุมัติแผน</Button><OutcomeMessage outcome={outcome}/>
+  </div>;
+}
+
+export function CarePlanForm() {
+  const [searchParams] = useSearchParams();
+  const [outcome, setOutcome] = useState<Outcome>(null);
+  const [draft, setDraft] = useState<DraftPlan | null>(null);
+  const form = useForm<CarePlanValues>({ resolver: zodResolver(carePlanSchema), defaultValues: { patientId: searchParams.get('patientId') ?? '', rulesetId: isDemoMode ? DEMO_RULESET_ID : '', effectiveFrom: '', effectiveTo: '', goalsSummary: '', serviceType: '', instructions: '', unit: 'WEEK', weekdays: [], windowStart: '09:00', windowEnd: '12:00' } });
   const unit = form.watch('unit');
   const errors = form.formState.errors;
   return <FormPage title="สร้าง Care Plan" description="แผนเริ่มเป็น DRAFT และยังไม่สร้างตารางจนผ่านเงื่อนไข activation">
-    <form onSubmit={form.handleSubmit((values) => attempt(setOutcome, () => post('/care-plans', toCarePlanRequest(values)), 'สร้างร่างแผนแล้ว'))} className="grid gap-4 md:grid-cols-2">
+    <form onSubmit={form.handleSubmit((values) => attempt(setOutcome, async () => setDraft(await post<DraftPlan>('/care-plans', toCarePlanRequest(values))), 'สร้างร่างแผนแล้ว'))} className="grid gap-4 md:grid-cols-2">
       {([['patientId', 'รหัสผู้รับบริการ'], ['rulesetId', 'ชุดกฎบริการที่อนุมัติแล้ว'], ['effectiveFrom', 'เริ่มวันที่'], ['effectiveTo', 'ถึงวันที่'], ['serviceType', 'ประเภทบริการ']] as const).map(([name, label]) => <label key={name} className={labelClass}>{label}<input type={name.startsWith('effective') ? 'date' : 'text'} {...form.register(name)} className={fieldClass}/><span className="text-xs text-danger">{errors[name]?.message}</span></label>)}
       <label className={labelClass}>รอบการเยี่ยม<select {...form.register('unit')} className={fieldClass}><option value="WEEK">รายสัปดาห์</option><option value="MONTH">รายเดือน</option></select></label>
       {unit === 'WEEK'
@@ -147,7 +172,8 @@ export function CarePlanForm() {
       <label className={labelClass}>เวลาสิ้นสุด<input type="time" {...form.register('windowEnd')} className={fieldClass}/><span className="text-xs text-danger">{errors.windowEnd?.message}</span></label>
       <label className={`${labelClass} md:col-span-2`}>เป้าหมาย<textarea {...form.register('goalsSummary')} className={fieldClass}/><span className="text-xs text-danger">{errors.goalsSummary?.message}</span></label>
       <label className={`${labelClass} md:col-span-2`}>คำแนะนำกิจกรรม<textarea {...form.register('instructions')} className={fieldClass}/><span className="text-xs text-danger">{errors.instructions?.message}</span></label>
-      <div className="md:col-span-2"><Button type="submit" disabled={form.formState.isSubmitting}>บันทึกร่าง</Button><OutcomeMessage outcome={outcome}/></div>
+      <div className="md:col-span-2"><Button type="submit" disabled={form.formState.isSubmitting || draft !== null}>บันทึกร่าง</Button><OutcomeMessage outcome={outcome}/></div>
+      {draft && <ActivatePlan plan={draft}/>}
     </form>
   </FormPage>;
 }
