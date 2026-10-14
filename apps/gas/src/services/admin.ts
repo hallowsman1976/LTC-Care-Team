@@ -112,33 +112,47 @@ export function listAssignments(actor: Actor): Page<RowRecord> {
  * patient's upcoming, not yet started visits to the new caregiver. Opens a care episode when the
  * patient has none, so newly registered or imported patients can be assigned straight away.
  */
+/** The patient's active care episode, opened now when there is none. Call inside the script lock. */
+export function activeEpisodeFor(patientId: string, legalBasis?: string): string {
+  const active = listAll('CareEpisodes', (row) => String(row.patientId) === patientId && String(row.status) === 'ACTIVE');
+  if (active.length > 1) throw new Error('MULTIPLE_ACTIVE_EPISODES');
+  if (active[0]) return String(active[0].episodeId);
+  const consent = legalBasis ? null : listAll('PatientConsents', (row) => String(row.patientId) === patientId && !String(row.revokedAt))
+    .sort((left, right) => String(right.givenAt).localeCompare(String(left.givenAt)))[0];
+  const episodeId = Utilities.getUuid();
+  appendUnique('CareEpisodes', 'episodeId', { episodeId, patientId, startDate: bangkokToday(), endDate: '', eligibilityStatus: 'PENDING_ASSESSMENT', status: 'ACTIVE', fundingType: 'LTC', legalBasis: legalBasis || String(consent?.legalBasis ?? '') });
+  return episodeId;
+}
+
+export function requireEnabledUser(userId: string, role: 'CG' | 'CM'): void {
+  const user = getById('Users', 'userId', userId);
+  if (!user || String(user.role) !== role || String(user.enabled).toLowerCase() !== 'true') throw new Error(role === 'CG' ? 'CAREGIVER_NOT_FOUND' : 'CARE_MANAGER_NOT_FOUND');
+}
+
+/**
+ * Makes `caregiverUserId` the patient's caregiver: ends the previous CG assignment, moves upcoming
+ * visits that have not started, and records the caregiver on the patient row. Call inside the lock.
+ */
+export function assignCaregiver(actorId: string, patientId: string, caregiverUserId: string): { episodeId: string; status: string; reassignedVisits: number } {
+  const today = bangkokToday();
+  const episodeId = activeEpisodeFor(patientId);
+  const current = listAll('StaffAssignments', (row) => String(row.episodeId) === episodeId && isActiveCgAssignment(row));
+  if (current.length === 1 && String(current[0]!.staffId) === caregiverUserId) return { episodeId, status: 'UNCHANGED', reassignedVisits: 0 };
+  updateWhere('StaffAssignments', (row) => String(row.episodeId) === episodeId && isActiveCgAssignment(row), { status: 'ENDED', dateTo: today });
+  appendUnique('StaffAssignments', 'assignmentId', { assignmentId: Utilities.getUuid(), episodeId, staffId: caregiverUserId, role: 'CG', dateFrom: today, dateTo: '', status: 'ACTIVE', assignedBy: actorId });
+  const reassignedVisits = updateWhere('VisitSchedules', (row) => String(row.episodeId) === episodeId
+    && ['PLANNED', 'ASSIGNED'].includes(String(row.status)) && String(row.visitDateTime).slice(0, 10) >= today, { assignedStaffId: caregiverUserId });
+  if (headersOf(getSheet('Patients')).includes('caregiverId')) updateWhere('Patients', (row) => String(row.patientId) === patientId, { caregiverId: caregiverUserId });
+  return { episodeId, status: 'ASSIGNED', reassignedVisits };
+}
+
 export function setAssignment(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
   requireCapability(actor, 'assignments:manage');
   const input = assignmentSetSchema.parse(payload);
   const patient = getById('Patients', 'patientId', input.patientId);
   if (!patient || String(patient.status) !== 'ACTIVE') throw new Error('PATIENT_NOT_FOUND');
-  const caregiver = getById('Users', 'userId', input.caregiverUserId);
-  if (!caregiver || String(caregiver.role) !== 'CG' || String(caregiver.enabled).toLowerCase() !== 'true') throw new Error('CAREGIVER_NOT_FOUND');
-  const today = bangkokToday();
-  const now = new Date().toISOString();
-  const result = withScriptLock(() => {
-    const active = listAll('CareEpisodes', (row) => String(row.patientId) === input.patientId && String(row.status) === 'ACTIVE');
-    if (active.length > 1) throw new Error('MULTIPLE_ACTIVE_EPISODES');
-    let episodeId = String(active[0]?.episodeId ?? '');
-    if (!episodeId) {
-      episodeId = Utilities.getUuid();
-      const consent = listAll('PatientConsents', (row) => String(row.patientId) === input.patientId && !String(row.revokedAt))
-        .sort((left, right) => String(right.givenAt).localeCompare(String(left.givenAt)))[0];
-      appendUnique('CareEpisodes', 'episodeId', { episodeId, patientId: input.patientId, startDate: today, endDate: '', eligibilityStatus: 'PENDING_ASSESSMENT', status: 'ACTIVE', fundingType: 'LTC', legalBasis: String(consent?.legalBasis ?? '') });
-    }
-    const current = listAll('StaffAssignments', (row) => String(row.episodeId) === episodeId && isActiveCgAssignment(row));
-    if (current.length === 1 && String(current[0]!.staffId) === input.caregiverUserId) return { episodeId, status: 'UNCHANGED', reassignedVisits: 0 };
-    updateWhere('StaffAssignments', (row) => String(row.episodeId) === episodeId && isActiveCgAssignment(row), { status: 'ENDED', dateTo: today });
-    appendUnique('StaffAssignments', 'assignmentId', { assignmentId: Utilities.getUuid(), episodeId, staffId: input.caregiverUserId, role: 'CG', dateFrom: today, dateTo: '', status: 'ACTIVE', assignedBy: actor.userId });
-    const reassignedVisits = updateWhere('VisitSchedules', (row) => String(row.episodeId) === episodeId
-      && ['PLANNED', 'ASSIGNED'].includes(String(row.status)) && String(row.visitDateTime).slice(0, 10) >= today, { assignedStaffId: input.caregiverUserId });
-    return { episodeId, status: 'ASSIGNED', reassignedVisits };
-  });
+  requireEnabledUser(input.caregiverUserId, 'CG');
+  const result = withScriptLock(() => assignCaregiver(actor.userId, input.patientId, input.caregiverUserId));
   audit(actor.userId, 'assignment.set', 'CareEpisode', result.episodeId, 'SUCCESS', `CG:${input.caregiverUserId};VISITS:${result.reassignedVisits}`);
   return { patientId: input.patientId, caregiverUserId: input.caregiverUserId, ...result };
 }

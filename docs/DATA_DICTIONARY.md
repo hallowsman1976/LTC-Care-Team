@@ -17,3 +17,24 @@ Key rules:
 
 Primary tables: Users, AuthCredentials, StaffProfiles, Patients, PatientContacts, CareEpisodes, ADLAssessments, LTCClassifications, RiskAssessments, CarePlans, CarePlanProblems, CarePlanInterventions, StaffAssignments, VisitSchedules, VisitEncounters, VisitActivities, VisitFiles, Alerts, Referrals, ServiceRuleSets, ServiceFrequencyRules, PatientConsents, NotificationOutbox, AuditLogs, SyncReceipts, JobRuns, IndexRegistry and Holidays.
 
+
+## Patients registration fields
+
+New columns are appended to an existing `Patients` sheet on the next registration (`ensureColumns`); existing columns never move, because rows are read by header name. Choice fields store the codes in `packages/shared/src/patient.ts`.
+
+| Requested field | Column | Notes |
+|---|---|---|
+| PatientID | `patientId` | UUID, set by the server |
+| CID | `cidCiphertext`, `cidLookupHash` | Encrypted at the Worker; plaintext never stored |
+| HN, FullName, Sex, BirthDate, Phone | `hn`, `fullName`, `sex`, `birthDate`, `phone` | Birth date ISO (CE); the form shows พ.ศ. |
+| Age | — | Computed from `birthDate` when shown, never stored |
+| Address, VillageNo, VillageName | `address`, `villageNo`, `villageName` | `village` keeps the combined label for lists, e.g. "หมู่ 2 บ้านหนองบัว" |
+| Subdistrict, District, Province | `subdistrict`, `district`, `province` | |
+| Latitude, Longitude | `latitude`, `longitude` | Decimal degrees |
+| MainCaregiverName, MainCaregiverPhone, Relationship | `mainCaregiverName`, `mainCaregiverPhone`, `relationship` | Family caregiver, not the CG |
+| RightType, Disease | `rightType`, `diseases` | `diseases` is a comma-separated list |
+| DependencyStatus, ADLScore, TAIGroup, PPSScore, MentalHealthStatus | `dependencyStatus`, `adlScore`, `taiGroup`, `ppsScore`, `mentalHealthStatus` | Intake values; formal ADL stays in `ADLAssessments` |
+| CareManagerID | `careManagerId` | Defaults to the registering CM |
+| CaregiverID | `caregiverId` | Mirror of the active CG in `StaffAssignments`, kept in step by assignment |
+| RegisterDate | `registerDate` | Defaults to today (Bangkok) |
+| Status, CreatedBy, CreatedAt, UpdatedAt | `status`, `createdBy`, `createdAt`, `updatedAt` | Set by the server |

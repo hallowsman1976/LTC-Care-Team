@@ -1,7 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { caregiverCreateSchema, importTemplateCsv, normalizeBirthDate, parseCsv, readImportCsv } from '../src';
+import { caregiverCreateSchema, dependencyFromAdl, importTemplateCsv, patientCreateSchema, normalizeBirthDate, parseCsv, readImportCsv } from '../src';
 
 const header = 'รหัสท้องถิ่น,HN,เลขประจำตัวประชาชน,ชื่อ-สกุล,วันเกิด,เพศ,ที่อยู่,หมู่บ้าน,โทรศัพท์';
+
+describe('patient form', () => {
+  const base = { hn: 'HN-1', cid: '1100000000002', fullName: 'นางสมมติ', birthDate: '1945-03-15', sex: 'FEMALE', address: '12/3' };
+
+  it('treats empty optional inputs as absent and reads numbers typed as text', () => {
+    const parsed = patientCreateSchema.parse({ ...base, relationship: '', rightType: '', adlScore: '', ppsScore: '50', latitude: '16.4321', mainCaregiverPhone: '089-999 9999' });
+    expect(parsed).toMatchObject({ localCode: '', relationship: undefined, adlScore: undefined, ppsScore: 50, latitude: 16.4321, mainCaregiverPhone: '0899999999' });
+  });
+
+  it('rejects out-of-range scores and coordinates', () => {
+    for (const change of [{ adlScore: 21 }, { ppsScore: 55 }, { latitude: 91 }, { taiGroup: 'X9' }, { villageNo: 'สอง' }]) {
+      expect(patientCreateSchema.safeParse({ ...base, ...change }).success).toBe(false);
+    }
+  });
+
+  it('suggests the dependency group from the ADL score', () => {
+    expect([20, 12, 11, 5, 4, 0].map(dependencyFromAdl)).toEqual(['SOCIAL', 'SOCIAL', 'HOMEBOUND', 'HOMEBOUND', 'BEDBOUND', 'BEDBOUND']);
+  });
+});
 
 describe('caregiver form', () => {
   const valid = {

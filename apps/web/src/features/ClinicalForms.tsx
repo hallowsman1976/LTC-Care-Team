@@ -1,13 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
-import { type Page, adlAssessmentItemsSchema, calculateAdlTotal, ltcObservationSchema, patientCreateSchema, suggestLtcGroup } from '@smart-ltc/shared';
+import { type Page, adlAssessmentItemsSchema, calculateAdlTotal, ltcObservationSchema, suggestLtcGroup } from '@smart-ltc/shared';
 import { api, isDemoMode, post, todayInBangkok } from '../lib/api';
 import { Button, Card, ErrorState, Status } from '../components/ui';
-import { ThaiDatePicker } from '../components/ThaiDatePicker';
 
 const fieldClass = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2';
 const labelClass = 'block text-sm font-semibold text-slate-700';
@@ -31,27 +30,6 @@ const optionalNumber = (schema: z.ZodNumber) => z.preprocess((value) => (value =
 
 function FormPage({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return <div className="mx-auto max-w-3xl space-y-5"><div><h2 className="text-2xl font-bold">{title}</h2><p className="text-slate-600">{description}</p></div><Card>{children}</Card></div>;
-}
-
-export function PatientForm() {
-  const [outcome, setOutcome] = useState<Outcome>(null);
-  const form = useForm<z.infer<typeof patientCreateSchema>>({
-    resolver: zodResolver(patientCreateSchema),
-    defaultValues: { localCode: '', hn: '', cid: '', fullName: '', birthDate: '', sex: 'UNKNOWN', address: '', village: '', phone: '', legalBasis: undefined, privacyNoticeVersion: import.meta.env.VITE_PRIVACY_NOTICE_VERSION || '' }
-  });
-  const submit = form.handleSubmit((values) => attempt(setOutcome, () => post('/patients', values), isDemoMode ? 'บันทึกข้อมูลจำลองแล้ว' : 'บันทึกผู้รับบริการและฐานการประมวลผลแล้ว'));
-  return <FormPage title="เพิ่มผู้รับบริการ" description={isDemoMode ? 'ห้ามกรอกข้อมูลบุคคลจริงในระบบ DEMO' : 'กรอกเฉพาะข้อมูลที่จำเป็นตามฐานการประมวลผลที่หน่วยบริการอนุมัติ'}>
-    <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
-      {([['localCode', 'รหัสท้องถิ่น'], ['hn', 'HN'], ['cid', isDemoMode ? 'CID จำลอง 13 หลัก' : 'เลขประจำตัวประชาชน 13 หลัก'], ['fullName', isDemoMode ? 'ชื่อ–สกุลจำลอง' : 'ชื่อ–สกุล']] as const).map(([name, label]) => <label className={labelClass} key={name}>{label}<input type="text" {...form.register(name)} className={fieldClass}/><span className="text-xs text-danger">{form.formState.errors[name]?.message}</span></label>)}
-      <label className={labelClass}>วันเกิด<Controller control={form.control} name="birthDate" render={({ field }) => <ThaiDatePicker value={field.value ?? ''} onChange={field.onChange} onBlur={field.onBlur} maxDate={todayInBangkok()} invalid={Boolean(form.formState.errors.birthDate)} className={fieldClass}/>}/><span className="text-xs text-danger">{form.formState.errors.birthDate?.message}</span></label>
-      <label className={labelClass}>เพศ<select {...form.register('sex')} className={fieldClass}><option value="UNKNOWN">ไม่ระบุ</option><option value="FEMALE">หญิง</option><option value="MALE">ชาย</option><option value="OTHER">อื่น ๆ</option></select></label>
-      <label className={`${labelClass} md:col-span-2`}>{isDemoMode ? 'ที่อยู่จำลอง' : 'ที่อยู่สำหรับให้บริการ'}<textarea {...form.register('address')} className={fieldClass}/><span className="text-xs text-danger">{form.formState.errors.address?.message}</span></label>
-      <label className={labelClass}>หมู่บ้าน<input {...form.register('village')} className={fieldClass}/></label>
-      <label className={labelClass}>{isDemoMode ? 'โทรศัพท์จำลอง' : 'โทรศัพท์'}<input {...form.register('phone')} className={fieldClass}/></label>
-      {!isDemoMode && <><label className={labelClass}>ฐานการประมวลผล<select {...form.register('legalBasis')} className={fieldClass}><option value="">กรุณาเลือก</option><option value="PUBLIC_HEALTH">ภารกิจด้านสาธารณสุข</option><option value="MEDICAL_CARE">การให้บริการด้านสุขภาพ</option><option value="LEGAL_OBLIGATION">หน้าที่ตามกฎหมาย</option><option value="EXPLICIT_CONSENT">ความยินยอมโดยชัดแจ้ง</option></select></label><label className={labelClass}>เวอร์ชันประกาศความเป็นส่วนตัว<input {...form.register('privacyNoticeVersion')} readOnly className={fieldClass}/></label></>}
-      <div className="md:col-span-2"><Button type="submit" disabled={form.formState.isSubmitting}>บันทึกผู้รับบริการ</Button><OutcomeMessage outcome={outcome}/></div>
-    </form>
-  </FormPage>;
 }
 
 type AdlKey = keyof z.infer<typeof adlAssessmentItemsSchema>;

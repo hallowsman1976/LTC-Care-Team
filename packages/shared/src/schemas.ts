@@ -1,18 +1,50 @@
 import { z } from 'zod';
+import { DEPENDENCY_OPTIONS, MENTAL_HEALTH_OPTIONS, RELATIONSHIP_OPTIONS, RIGHT_TYPE_OPTIONS, SEX_OPTIONS, TAI_GROUP_OPTIONS } from './patient';
 
 export const roleSchema = z.enum(['ADMIN', 'CM', 'CG']);
 
+const codes = <T extends readonly (readonly [string, string])[]>(pairs: T) =>
+  z.enum(pairs.map(([value]) => value) as [T[number][0], ...T[number][0][]], { errorMap: () => ({ message: 'กรุณาเลือก' }) });
+/** An optional choice: the form's empty "not chosen" option means absent. */
+const optionalCode = <T extends readonly (readonly [string, string])[]>(pairs: T) => z.preprocess((value) => (value === '' ? undefined : value), codes(pairs).optional());
+/** An optional number typed into a text or number input; empty means absent. */
+const optionalNumber = (schema: z.ZodNumber) => z.preprocess((value) => (value === '' || value == null || (typeof value === 'number' && Number.isNaN(value)) ? undefined : Number(value)), schema.optional());
+const optionalPhone = z.string().transform((value) => value.replace(/[\s-]/g, '')).pipe(z.union([z.literal(''), z.string().regex(/^0\d{8,9}$/, 'เบอร์โทร 9–10 หลัก ขึ้นต้นด้วย 0')]));
+const optionalText = (max: number) => z.string().trim().max(max).optional();
+
 export const patientCreateSchema = z.object({
-  localCode: z.string().trim().min(1).max(40),
-  hn: z.string().trim().min(1).max(40),
+  // Kept for units that already number their register; the HN identifies the patient.
+  localCode: z.string().trim().max(40).default(''),
+  hn: z.string().trim().min(1, 'กรอก HN').max(40),
   cid: z.string().trim().regex(/^\d{13}$/, 'กรุณากรอกเลข 13 หลัก'),
-  fullName: z.string().trim().min(2).max(160),
-  birthDate: z.string().date(),
-  sex: z.enum(['FEMALE', 'MALE', 'OTHER', 'UNKNOWN']),
-  address: z.string().trim().min(1).max(500),
-  village: z.string().trim().max(80),
+  fullName: z.string().trim().min(2, 'กรอกชื่อ–สกุล').max(160),
+  birthDate: z.string().date('เลือกวันเกิด'),
+  sex: codes(SEX_OPTIONS),
+  address: z.string().trim().min(1, 'กรอกบ้านเลขที่/ที่อยู่').max(500),
+  /** The village as lists show it, e.g. "หมู่ 2 บ้านหนองบัว"; derived from villageNo and villageName when they are given. */
+  village: z.string().trim().max(120).default(''),
   phone: z.string().trim().max(30).optional(),
-  legalBasis: z.enum(['PUBLIC_HEALTH', 'MEDICAL_CARE', 'LEGAL_OBLIGATION', 'EXPLICIT_CONSENT']).optional(),
+  villageNo: z.string().trim().regex(/^\d{0,3}$/, 'ใส่เป็นตัวเลข').optional(),
+  villageName: optionalText(80),
+  subdistrict: optionalText(80),
+  district: optionalText(80),
+  province: optionalText(80),
+  latitude: optionalNumber(z.number().min(-90).max(90)),
+  longitude: optionalNumber(z.number().min(-180).max(180)),
+  mainCaregiverName: optionalText(160),
+  mainCaregiverPhone: optionalPhone.optional(),
+  relationship: optionalCode(RELATIONSHIP_OPTIONS),
+  rightType: optionalCode(RIGHT_TYPE_OPTIONS),
+  diseases: optionalText(500),
+  dependencyStatus: optionalCode(DEPENDENCY_OPTIONS),
+  adlScore: optionalNumber(z.number().int().min(0).max(20)),
+  taiGroup: optionalCode(TAI_GROUP_OPTIONS),
+  ppsScore: optionalNumber(z.number().int().min(0).max(100).multipleOf(10)),
+  mentalHealthStatus: optionalCode(MENTAL_HEALTH_OPTIONS),
+  careManagerId: optionalText(80),
+  caregiverId: optionalText(80),
+  registerDate: z.string().date().optional(),
+  legalBasis: z.preprocess((value) => (value === '' ? undefined : value), z.enum(['PUBLIC_HEALTH', 'MEDICAL_CARE', 'LEGAL_OBLIGATION', 'EXPLICIT_CONSENT']).optional()),
   privacyNoticeVersion: z.string().trim().max(40).optional(),
   duplicateOverrideReason: z.string().trim().min(10).max(500).optional()
 });

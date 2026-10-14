@@ -6,7 +6,9 @@ export const SHEETS: Record<string, string[]> = {
   Users: ['userId', 'identitySubject', 'email', 'usernameNormalized', 'displayName', 'role', 'enabled', 'createdAt', 'updatedAt'],
   AuthCredentials: ['credentialId', 'userId', 'identifierNormalized', 'saltBase64', 'derivedHashBase64', 'algorithm', 'iterations', 'passwordChangedAt', 'status'],
   StaffProfiles: ['staffId', 'userId', 'staffType', 'credentialType', 'credentialVerifiedAt', 'qualificationExpiry'],
-  Patients: ['patientId', 'localCode', 'hn', 'cidCiphertext', 'cidLookupHash', 'fullName', 'birthDate', 'sex', 'address', 'village', 'phone', 'status', 'createdAt', 'updatedAt', 'createdBy', 'recordVersion'],
+  Patients: ['patientId', 'localCode', 'hn', 'cidCiphertext', 'cidLookupHash', 'fullName', 'birthDate', 'sex', 'address', 'village', 'phone', 'status', 'createdAt', 'updatedAt', 'createdBy', 'recordVersion',
+    'villageNo', 'villageName', 'subdistrict', 'district', 'province', 'latitude', 'longitude', 'mainCaregiverName', 'mainCaregiverPhone', 'relationship',
+    'rightType', 'diseases', 'dependencyStatus', 'adlScore', 'taiGroup', 'ppsScore', 'mentalHealthStatus', 'careManagerId', 'caregiverId', 'registerDate'],
   PatientContacts: ['contactId', 'patientId', 'contactName', 'relation', 'phone', 'emergencyFlag', 'authorizationBasis'],
   CareEpisodes: ['episodeId', 'patientId', 'startDate', 'endDate', 'eligibilityStatus', 'status', 'fundingType', 'legalBasis'],
   ADLAssessments: ['assessmentId', 'episodeId', 'assessorId', 'assessmentDate', 'feeding', 'grooming', 'transfer', 'toiletUse', 'mobility', 'dressing', 'stairs', 'bathing', 'bowels', 'bladder', 'totalScore', 'scoringVersion', 'approvedBy', 'status', 'createdAt', 'updatedAt', 'createdBy', 'recordVersion'],
@@ -50,6 +52,29 @@ export function ensureSheet(name: string): void {
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   sheet.setFrozenRows(1);
   if (TEXT_SHEETS.includes(name)) sheet.getRange(1, 1, sheet.getMaxRows(), headers.length).setNumberFormat('@');
+}
+
+/** Columns that hold typed-in codes or phone numbers in sheets that otherwise hold mixed data. */
+const TEXT_COLUMNS: Record<string, string[]> = { Patients: ['localCode', 'hn', 'phone', 'mainCaregiverPhone', 'villageNo'] };
+
+/**
+ * Appends columns added to SHEETS after the sheet was created, so a deploy needs no manual step.
+ * Existing columns are never moved: rows are read and written by header name.
+ */
+export function ensureColumns(name: string): void {
+  const headers = SHEETS[name];
+  if (!headers) throw new Error(`UNKNOWN_SHEET:${name}`);
+  const sheet = getSpreadsheet().getSheetByName(name);
+  if (!sheet) throw new Error(`SHEET_MISSING:${name}`);
+  const lastColumn = sheet.getLastColumn();
+  const existing = lastColumn ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0]!.map(String) : [];
+  const missing = headers.filter((header) => !existing.includes(header));
+  if (missing.length) sheet.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
+  const all = [...existing, ...missing];
+  for (const column of TEXT_COLUMNS[name] ?? []) {
+    const index = all.indexOf(column);
+    if (index >= 0 && missing.includes(column)) sheet.getRange(1, index + 1, sheet.getMaxRows(), 1).setNumberFormat('@');
+  }
 }
 
 export function initializeDemoWorkbook(requireDemo = true): { created: string[] } {
