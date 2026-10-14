@@ -20,6 +20,21 @@ export function listCaregivers(actor: Actor): Page<RowRecord> {
   return { items, hasMore: false };
 }
 
+/** Every account and its role, for the ข้อมูลผู้ใช้งาน page. Never returns credentials. */
+export function listUsers(actor: Actor): Page<RowRecord> {
+  requireCapability(actor, 'users:manage');
+  const expiryOf = new Map(listAll('StaffProfiles', () => true).map((row) => [String(row.userId), String(row.qualificationExpiry ?? '')]));
+  const signInNames = new Map(listAll('AuthCredentials', (row) => String(row.status) === 'ACTIVE').map((row) => [String(row.userId), String(row.identifierNormalized)]));
+  const roleOrder = ['ADMIN', 'CM', 'CG'];
+  const items = listAll('Users', () => true).map((row) => ({
+    userId: row.userId, displayName: row.displayName, role: row.role,
+    username: signInNames.get(String(row.userId)) || row.usernameNormalized || row.email || '',
+    enabled: String(row.enabled).toLowerCase() === 'true', createdAt: row.createdAt,
+    credentialValidUntil: String(row.role) === 'CM' ? expiryOf.get(String(row.userId)) ?? '' : ''
+  })).sort((left, right) => roleOrder.indexOf(String(left.role)) - roleOrder.indexOf(String(right.role)) || String(left.displayName).localeCompare(String(right.displayName), 'th'));
+  return { items, hasMore: false };
+}
+
 /** A caregiver account that signs in with username and password (DEMO sign-in). */
 export function createCaregiver(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
   requireCapability(actor, 'users:manage');

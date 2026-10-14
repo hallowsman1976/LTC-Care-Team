@@ -3,13 +3,13 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { ErrorState, Loading } from '../components/ui';
 import { Dashboard } from '../features/Dashboard';
 import { Patients } from '../features/Patients';
-import { Alerts, Calendar, Placeholder, Reviews, Visits } from '../features/WorkflowPages';
+import { Alerts, Calendar, Reviews, Visits } from '../features/WorkflowPages';
 import { browserSupported } from '../lib/browser';
 import { getMe } from '../lib/api';
 import { ApiError } from '../lib/api';
 import { Login } from '../features/Login';
 import { Layout } from './Layout';
-import { Assignments, Caregivers, PatientImport } from '../features/Admin';
+import { Assignments, Caregivers, PatientImport, UserDirectory } from '../features/Admin';
 import { VisitRecordForm } from '../features/VisitRecordForm';
 import { AdlForm, CarePlanForm, ClassificationForm, PatientForm } from '../features/ClinicalForms';
 
@@ -36,10 +36,10 @@ export function App() {
     <Route path="patients/:id/classification" element={<ClassificationForm/>}/>
     <Route path="care-plans/new" element={<CarePlanForm/>}/>
     <Route path="visits/:id" element={<VisitRecordForm/>}/>
-    <Route path="admin/assignments" element={<Assignments/>}/>
-    <Route path="admin/caregivers" element={<Caregivers/>}/>
-    <Route path="admin/import" element={<PatientImport/>}/>
-    <Route path="settings/users" element={<Placeholder title="ผู้ใช้งานและสิทธิ์"/>}/>
+    <Route path="assignments" element={<Assignments/>}/>
+    <Route path="settings/import" element={<PatientImport/>}/>
+    <Route path="settings/caregivers" element={<Caregivers/>}/>
+    <Route path="settings/users" element={<UserDirectory actor={actor}/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/>
   </Route></Routes>;
 }

@@ -139,7 +139,3 @@ function ReviewCard({ review }: { review: ReviewItem }) {
     {error && <div className="mt-3"><ErrorState message={error}/></div>}
   </Card>;
 }
-
-export function Placeholder({ title }: { title: string }) {
-  return <Page title={title} description="ส่วนควบคุมนี้ต้องตั้งค่าผ่านผู้ดูแลระบบของหน่วยงาน"><Card><p className="text-slate-600">ยังไม่มีการดำเนินการในหน้านี้</p></Card></Page>;
-}

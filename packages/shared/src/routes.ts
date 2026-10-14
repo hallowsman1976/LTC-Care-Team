@@ -50,6 +50,14 @@ export const READ_ROUTES: Record<string, ReadRoute> = {
     demo: (actor) => page(actor.role === 'CG' ? [] : [{ alertId: 'al-demo-001', severity: 'HIGH', alertType: 'CG_URGENT_FLAG', eventAt: '2026-10-12T15:30:00+07:00', status: 'OPEN' }])
   },
   '/admin/caregivers': { action: 'caregiver.list', capability: 'users:manage', demo: () => page(demoCaregivers) },
+  '/admin/users': {
+    action: 'user.list', capability: 'users:manage',
+    demo: () => page([
+      { userId: 'usr-demo-admin', displayName: 'ผู้ดูแลระบบตัวอย่าง', username: 'admin.demo', role: 'ADMIN', enabled: true, createdAt: '2026-10-01T00:00:00.000Z', credentialValidUntil: '' },
+      { userId: 'usr-demo-cm', displayName: 'CM ตัวอย่าง', username: 'cm.demo', role: 'CM', enabled: true, createdAt: '2026-10-01T00:00:00.000Z', credentialValidUntil: '2099-12-31' },
+      ...demoCaregivers.map((caregiver) => ({ userId: caregiver.userId, displayName: caregiver.displayName, username: caregiver.username, role: 'CG', enabled: caregiver.enabled, createdAt: '2026-10-01T00:00:00.000Z', credentialValidUntil: '' }))
+    ])
+  },
   '/admin/assignments': {
     action: 'assignment.list', capability: 'assignments:manage',
     demo: () => page(demoPatients.map((patient, index) => ({

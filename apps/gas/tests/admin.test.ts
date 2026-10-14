@@ -21,6 +21,15 @@ describe('caregiver accounts', () => {
     expect(post('caregiver.list', 'usr-admin', {})).toMatchObject({ ok: true, data: { items: expect.arrayContaining([expect.objectContaining({ username: 'cg.new', activePatients: 0 })]) } });
   });
 
+  it('lists every account without exposing credentials', () => {
+    post('caregiver.create', 'usr-admin', { displayName: 'CG ใหม่', username: 'cg.new', password: 'long enough password' });
+    const result = post('user.list', 'usr-admin', {}) as { ok: boolean; data: { items: Array<Record<string, unknown>> } };
+    expect(result.data.items.map((user) => user.role)).toEqual(['ADMIN', 'CG', 'CG', 'CG']);
+    expect(result.data.items.find((user) => user.userId !== 'usr-admin' && user.username === 'cg.new')).toMatchObject({ enabled: true });
+    expect(JSON.stringify(result)).not.toMatch(/derivedHash|salt/i);
+    expect(post('user.list', 'usr-cg', {})).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+
   it('refuses a username that is already taken', () => {
     expect(post('caregiver.create', 'usr-admin', { displayName: 'ซ้ำ', username: 'cg.one', password: 'long enough password' })).toMatchObject({ ok: false, code: 'USERNAME_TAKEN' });
   });

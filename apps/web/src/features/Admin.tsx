@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import type { z } from 'zod';
 import {
   caregiverCreateSchema, importTemplateCsv, IMPORT_COLUMNS, MAX_IMPORT_ROWS_PER_REQUEST, readImportCsv,
-  type ImportPreview, type Page as ListPage, type PatientImportRow
+  type Actor, type ImportPreview, type Page as ListPage, type PatientImportRow, type Role
 } from '@smart-ltc/shared';
 import { api, isDemoMode, post } from '../lib/api';
 import { Button, Card, ErrorState, Loading, Status } from '../components/ui';
@@ -50,7 +50,7 @@ export function Caregivers() {
     } catch (failure) { setError(messageOf(failure)); }
   });
   const errors = form.formState.errors;
-  return <AdminPage title="ผู้ดูแล (CG)" description="เพิ่มบัญชีผู้ดูแลที่เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน แล้วไปมอบหมายผู้รับบริการในเมนู “มอบหมายงาน CG”">
+  return <AdminPage title="ผู้ดูแล (CG)" description="เพิ่มบัญชีผู้ดูแลที่เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน แล้วไปมอบหมายผู้รับบริการในเมนู “มอบหมายงาน CG” · บัญชีทั้งหมดดูได้ที่ “ข้อมูลผู้ใช้งาน”">
     <Card>
       <h3 className="flex items-center gap-2 text-lg font-bold"><UserPlus aria-hidden size={20}/>เพิ่ม CG</h3>
       {isDemoMode && <p className="mt-1 text-sm text-slate-500">ระบบ DEMO: ใช้ชื่อสมมติเท่านั้น</p>}
@@ -78,6 +78,59 @@ export function Caregivers() {
         <div className="flex flex-col items-end gap-1"><Status tone={caregiver.enabled ? 'success' : 'neutral'}>{caregiver.enabled ? 'ใช้งาน' : 'ปิดใช้งาน'}</Status><span className="text-sm text-slate-600">ดูแล {caregiver.activePatients} ราย</span></div>
       </div></Card>)}
     </div> : <Card><p className="text-center text-slate-500">ยังไม่มี CG</p></Card>}
+  </AdminPage>;
+}
+
+interface UserRow { userId: string; displayName: string; username: string; role: Role; enabled: boolean; createdAt?: string; credentialValidUntil?: string }
+
+const ROLE_NAMES: Record<Role, string> = { ADMIN: 'ผู้ดูแลระบบ', CM: 'ผู้จัดการการดูแล (CM)', CG: 'ผู้ดูแล (CG)' };
+
+const thaiDate = (value?: string) => {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.valueOf()) ? date.toLocaleDateString('th-TH', { dateStyle: 'medium' }) : '–';
+};
+
+/** CM sign-in depends on a verified clinical credential; flag it before it lapses. */
+function CredentialStatus({ until }: { until?: string | undefined }) {
+  if (!until) return <Status tone="danger">ยังไม่ได้ตรวจสอบใบประกอบวิชาชีพ</Status>;
+  const days = Math.floor((new Date(until).valueOf() - Date.now()) / 86_400_000);
+  if (Number.isNaN(days)) return null;
+  if (days < 0) return <Status tone="danger">ใบประกอบวิชาชีพหมดอายุ</Status>;
+  return <Status tone={days <= 30 ? 'warning' : 'neutral'}>ใบประกอบฯ ถึง {thaiDate(until)}</Status>;
+}
+
+export function UserDirectory({ actor }: { actor: Actor }) {
+  const users = useQuery({ queryKey: ['admin', 'users'], queryFn: () => api<ListPage<UserRow>>('/admin/users') });
+  const [search, setSearch] = useState('');
+  const [role, setRole] = useState<Role | ''>('');
+  const items = users.data?.items ?? [];
+  const me = items.find((user) => user.userId === actor.userId);
+  const visible = items.filter((user) => (!role || user.role === role) && `${user.displayName} ${user.username} ${user.userId}`.toLowerCase().includes(search.toLowerCase()));
+  const countOf = (value: Role) => items.filter((user) => user.role === value).length;
+  return <AdminPage title="ข้อมูลผู้ใช้งาน" description="บัญชีทั้งหมดในระบบ บทบาท ชื่อที่ใช้เข้าสู่ระบบ และสถานะ ระบบไม่แสดงรหัสผ่าน">
+    <Card className="border-sky-200 bg-sky-50">
+      <p className="text-sm text-slate-600">บัญชีของฉัน</p>
+      <p className="text-lg font-bold">{me?.displayName || actor.userId}</p>
+      <div className="mt-1 flex flex-wrap items-center gap-2 text-sm"><Status tone="neutral">{ROLE_NAMES[actor.role]}</Status><span className="text-slate-600">{me?.username || actor.userId}</span>{actor.role === 'CM' && <CredentialStatus until={actor.credentialValidUntil}/>}</div>
+    </Card>
+    <div className="flex flex-wrap items-center gap-3">
+      <label className="relative min-w-60 flex-1"><span className="sr-only">ค้นหาผู้ใช้งาน</span><Search aria-hidden className="absolute left-3 top-3 text-slate-400" size={20}/><input value={search} onChange={(event) => setSearch(event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-3" placeholder="ค้นหาชื่อหรือชื่อผู้ใช้"/></label>
+      <div role="group" aria-label="กรองตามบทบาท" className="flex flex-wrap gap-2">
+        {([['', `ทั้งหมด ${items.length}`], ['CM', `CM ${countOf('CM')}`], ['CG', `CG ${countOf('CG')}`], ['ADMIN', `Admin ${countOf('ADMIN')}`]] as const).map(([value, label]) =>
+          <button key={value} type="button" aria-pressed={role === value} onClick={() => setRole(value)} className={`min-h-11 rounded-xl border px-3 text-sm font-semibold ${role === value ? 'border-primary bg-primary text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-sky-50'}`}>{label}</button>)}
+      </div>
+    </div>
+    {users.isLoading ? <Loading/> : users.error ? <ErrorState message={users.error.message}/> : visible.length === 0 ? <Card><p className="text-center text-slate-500">ไม่พบผู้ใช้งาน</p></Card> : <div className="grid gap-3 md:grid-cols-2">
+      {visible.map((user) => <Card key={user.userId}>
+        <div className="flex items-start justify-between gap-3">
+          <div><p className="font-bold">{user.displayName || user.userId}{user.userId === actor.userId && <span className="ml-2 text-sm font-normal text-primary">(ฉัน)</span>}</p>
+            <p className="text-sm text-slate-600">{user.username || 'ยังไม่มีชื่อเข้าสู่ระบบ'}</p>
+            <p className="text-xs text-slate-500">เพิ่มเมื่อ {thaiDate(user.createdAt)}</p></div>
+          <div className="flex flex-col items-end gap-1"><Status tone="neutral">{ROLE_NAMES[user.role] ?? user.role}</Status><Status tone={user.enabled ? 'success' : 'danger'}>{user.enabled ? 'ใช้งาน' : 'ปิดใช้งาน'}</Status></div>
+        </div>
+        {user.role === 'CM' && <div className="mt-2"><CredentialStatus until={user.credentialValidUntil}/></div>}
+      </Card>)}
+    </div>}
   </AdminPage>;
 }
 
@@ -123,7 +176,7 @@ export function Assignments() {
   if (assignments.isLoading || caregivers.isLoading) return <Loading/>;
   if (assignments.error || caregivers.error) return <ErrorState message={(assignments.error ?? caregivers.error)!.message}/>;
   return <AdminPage title="มอบหมายงาน CG" description="เลือกผู้ดูแลประจำของผู้รับบริการแต่ละราย ผู้ดูแลจะเห็นเฉพาะรายที่ได้รับมอบหมาย และงานเยี่ยมที่ยังไม่ถึงกำหนดจะย้ายตามไปด้วย">
-    {activeCaregivers.length === 0 && <p role="note" className="rounded-xl bg-amber-50 p-3 text-amber-900">ยังไม่มี CG ที่ใช้งานได้ <Link to="/admin/caregivers" className="font-semibold underline">เพิ่ม CG ก่อน</Link></p>}
+    {activeCaregivers.length === 0 && <p role="note" className="rounded-xl bg-amber-50 p-3 text-amber-900">ยังไม่มี CG ที่ใช้งานได้ <Link to="/settings/caregivers" className="font-semibold underline">เพิ่ม CG ก่อน</Link></p>}
     <div className="grid gap-3 sm:grid-cols-3">
       <Card><p className="text-sm text-slate-600">ผู้รับบริการทั้งหมด</p><p className="text-2xl font-bold">{rows.length}</p></Card>
       <Card><p className="text-sm text-slate-600">มอบหมายแล้ว</p><p className="text-2xl font-bold text-success">{rows.length - unassignedCount}</p></Card>
@@ -148,7 +201,7 @@ export function Assignments() {
     </Card>
     {message && (message.tone === 'success' ? <p role="status" className="flex items-center gap-2 rounded-xl bg-green-50 p-3 text-green-900"><CheckCircle2 aria-hidden size={18}/>{message.text}</p> : <ErrorState message={message.text}/>)}
 
-    {visible.length === 0 ? <Card><p className="text-center text-slate-500">{rows.length ? 'ไม่พบรายการที่ตรงกับเงื่อนไข' : <>ยังไม่มีผู้รับบริการ <Link to="/admin/import" className="font-semibold text-primary underline">นำเข้าข้อมูล</Link></>}</p></Card> : <div className="space-y-2">
+    {visible.length === 0 ? <Card><p className="text-center text-slate-500">{rows.length ? 'ไม่พบรายการที่ตรงกับเงื่อนไข' : <>ยังไม่มีผู้รับบริการ <Link to="/settings/import" className="font-semibold text-primary underline">นำเข้าข้อมูล</Link></>}</p></Card> : <div className="space-y-2">
       {visible.map((row) => <Card key={row.patientId} className={selected.has(row.patientId) ? 'border-primary' : ''}>
         <div className="flex flex-wrap items-center gap-3">
           <input type="checkbox" aria-label={`เลือก ${row.fullName}`} checked={selected.has(row.patientId)} onChange={() => toggle(row.patientId)} className="h-5 w-5"/>
@@ -278,7 +331,7 @@ export function PatientImport() {
     {result && <Card className="border-green-200">
       <p className="flex items-center gap-2 text-lg font-bold text-green-900"><CheckCircle2 aria-hidden/>นำเข้าใหม่ {result.created} ราย{result.skipped.length ? ` · ข้าม ${result.skipped.length} ราย` : ''}</p>
       {result.skipped.length > 0 && <ul className="mt-2 space-y-1 text-sm">{result.skipped.map((skip) => <li key={`${skip.line}-${skip.hn}`}>บรรทัด {skip.line} (HN {skip.hn}): {SKIP_REASONS[skip.reason] ?? skip.reason}</li>)}</ul>}
-      {result.created > 0 && <Link to="/admin/assignments" className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-white"><UserCheck aria-hidden size={18}/>ไปมอบหมาย CG</Link>}
+      {result.created > 0 && <Link to="/assignments" className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-white"><UserCheck aria-hidden size={18}/>ไปมอบหมาย CG</Link>}
     </Card>}
   </AdminPage>;
 }
