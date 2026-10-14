@@ -125,10 +125,13 @@ function ProfileFields({ form, photoPicker, cidLabel, cidHint }: { form: UseForm
 
     <Section title="ข้อมูลการอบรม" hint="หลักสูตรที่ผ่านการอบรม เพิ่มได้หลายหลักสูตร (สูงสุด 10)">
       <div className="space-y-3 md:col-span-2">
-        {trainings.fields.map((field, index) => <div key={field.id} className="grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-[2fr_1.4fr_1fr_0.7fr_auto] md:items-start">
+        {trainings.fields.map((field, index) => <div key={field.id} className="grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-[2fr_1.3fr_1.3fr_0.6fr_auto] md:items-start">
           <label className={labelClass}>หลักสูตร<input {...form.register(`trainings.${index}.course`)} className={fieldClass}/><FieldError message={errors.trainings?.[index]?.course?.message}/></label>
           <label className={labelClass}>หน่วยงานที่จัด<input {...form.register(`trainings.${index}.provider`)} className={fieldClass}/></label>
-          <label className={labelClass}>วันที่จบ<input type="date" {...form.register(`trainings.${index}.completedOn`)} className={fieldClass}/><FieldError message={errors.trainings?.[index]?.completedOn?.message}/></label>
+          <label className={labelClass}>วันที่จบ
+            <Controller control={form.control} name={`trainings.${index}.completedOn`} render={({ field }) => <ThaiDatePicker value={field.value ?? ''} onChange={field.onChange} onBlur={field.onBlur} maxDate={toIsoDate(new Date())} minYear={1970} invalid={Boolean(errors.trainings?.[index]?.completedOn)} className={fieldClass}/>}/>
+            <FieldError message={errors.trainings?.[index]?.completedOn?.message}/>
+          </label>
           <label className={labelClass}>ชั่วโมง<input type="number" min={1} inputMode="numeric" {...form.register(`trainings.${index}.hours`, { setValueAs: (value: unknown) => (value === '' || value == null ? undefined : Number(value)) })} className={fieldClass}/><FieldError message={errors.trainings?.[index]?.hours?.message}/></label>
           <button type="button" onClick={() => trainings.remove(index)} aria-label={`ลบหลักสูตรที่ ${index + 1}`} className="inline-flex min-h-11 items-center justify-center rounded-xl px-3 text-slate-500 hover:bg-red-50 hover:text-danger md:mt-6"><Trash2 aria-hidden size={18}/></button>
         </div>)}
