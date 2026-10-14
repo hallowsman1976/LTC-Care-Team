@@ -43,3 +43,15 @@ describe('ADL form', () => {
     }
   });
 });
+
+describe('LTC classification form', () => {
+  it('offers every observation value the server accepts and all four groups', async () => {
+    const { OBSERVATION_QUESTIONS, LTC_GROUPS } = await import('./ClinicalForms');
+    const { ltcObservationSchema } = await import('@smart-ltc/shared');
+    for (const [key, field] of Object.entries(ltcObservationSchema.shape)) {
+      const offered = OBSERVATION_QUESTIONS[key as keyof typeof OBSERVATION_QUESTIONS].choices.map((choice) => choice.value).sort();
+      expect(offered).toEqual([...field.options].sort());
+    }
+    expect(LTC_GROUPS.map((group) => group.value)).toEqual([1, 2, 3, 4]);
+  });
+});

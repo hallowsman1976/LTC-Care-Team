@@ -141,25 +141,82 @@ const classificationSchema = ltcObservationSchema.extend({
   groupNumber: z.coerce.number().int().min(1).max(4), rationale: z.string().trim().min(10, 'กรุณาระบุเหตุผลอย่างน้อย 10 ตัวอักษร')
 });
 
+type Observation = z.infer<typeof ltcObservationSchema>;
+
+interface Choice<T> { value: T; label: string; detail: string }
+
+const UNKNOWN_CHOICE = { value: 'UNKNOWN', label: 'ยังไม่ทราบ / ยังไม่ได้ประเมิน', detail: 'ระบบจะไม่แนะนำกลุ่มจนกว่าจะประเมินข้อนี้' } as const;
+
+export const OBSERVATION_QUESTIONS: { [K in keyof Observation]: { title: string; hint: string; choices: Array<Choice<Observation[K]>> } } = {
+  mobilityStatus: { title: '1. การเคลื่อนไหว', hint: 'ความสามารถในการลุก นั่ง เดิน หรือเคลื่อนที่ในชีวิตประจำวัน', choices: [
+    { value: 'INDEPENDENT', label: 'เคลื่อนไหวได้เอง', detail: 'ลุก นั่ง เดินได้เอง หรือใช้อุปกรณ์ช่วยเดินได้เอง' },
+    { value: 'ASSISTED', label: 'เคลื่อนไหวได้บ้าง ต้องมีคนช่วย', detail: 'ต้องมีคนพยุง ประคอง หรือคอยดูแลเพื่อความปลอดภัย แต่ยังเคลื่อนที่ได้' },
+    { value: 'DEPENDENT', label: 'เคลื่อนไหวเองไม่ได้', detail: 'ติดเตียง หรือต้องมีผู้อื่นทำให้เกือบทั้งหมด' },
+    UNKNOWN_CHOICE] },
+  cognitiveStatus: { title: '2. ภาวะสับสนทางสมอง (การรับรู้)', hint: 'เช่น สับสนเรื่องเวลา สถานที่ บุคคล หลงลืมจนเป็นอันตราย หรือมีพฤติกรรมที่เป็นปัญหา', choices: [
+    { value: 'NO_SIGNIFICANT_DISTURBANCE', label: 'ไม่มีภาวะสับสนที่สำคัญ', detail: 'รับรู้และสื่อสารได้ตามปกติ หรือผิดปกติเล็กน้อยที่ไม่กระทบการดูแล' },
+    { value: 'DISTURBANCE', label: 'มีภาวะสับสนทางสมอง', detail: 'มีปัญหาการรับรู้หรือพฤติกรรมที่ต้องดูแลหรือเฝ้าระวังเพิ่ม' },
+    UNKNOWN_CHOICE] },
+  terminalStatus: { title: '3. ความเจ็บป่วยรุนแรงหรือระยะท้ายของชีวิต', hint: 'อ้างอิงการวินิจฉัยหรือความเห็นของแพทย์ ระบบไม่ได้วินิจฉัยเอง', choices: [
+    { value: 'NOT_CONFIRMED', label: 'ไม่อยู่ในระยะท้าย', detail: 'ไม่มีการยืนยันว่าป่วยรุนแรงหรืออยู่ในระยะท้ายของชีวิต' },
+    { value: 'CONFIRMED', label: 'ป่วยรุนแรงหรืออยู่ในระยะท้ายของชีวิต (ยืนยันแล้ว)', detail: 'มีการยืนยันจากแพทย์หรือทีมดูแลแบบประคับประคอง' },
+    UNKNOWN_CHOICE] }
+};
+
+export const LTC_GROUPS: Array<Choice<number>> = [
+  { value: 1, label: 'กลุ่ม 1', detail: 'เคลื่อนไหวได้บ้าง อาจมีปัญหาการกินหรือการขับถ่าย แต่ไม่มีภาวะสับสนทางสมอง' },
+  { value: 2, label: 'กลุ่ม 2', detail: 'เหมือนกลุ่ม 1 แต่มีภาวะสับสนทางสมอง' },
+  { value: 3, label: 'กลุ่ม 3', detail: 'เคลื่อนไหวเองไม่ได้ อาจมีปัญหาการกินหรือการขับถ่าย หรือมีอาการเจ็บป่วยรุนแรง' },
+  { value: 4, label: 'กลุ่ม 4', detail: 'เหมือนกลุ่ม 3 และป่วยรุนแรงหรืออยู่ในระยะท้ายของชีวิต' }
+];
+
+const SUGGESTION_REASONS: Record<string, string> = {
+  AMBIGUOUS_INPUT: 'ยังมีข้อที่ตอบว่า "ยังไม่ทราบ" ระบบจึงไม่แนะนำกลุ่ม CM ต้องพิจารณาเอง',
+  INVALID_ADL: 'คะแนน ADL ไม่อยู่ในช่วง 0–20',
+  DEPENDENT_TERMINAL: 'เคลื่อนไหวเองไม่ได้ และป่วยรุนแรงหรืออยู่ในระยะท้าย',
+  DEPENDENT_NOT_TERMINAL: 'เคลื่อนไหวเองไม่ได้ แต่ไม่อยู่ในระยะท้าย',
+  MOBILE_COGNITIVE_DISTURBANCE: 'ยังเคลื่อนไหวได้ และมีภาวะสับสนทางสมอง',
+  MOBILE_NO_COGNITIVE_DISTURBANCE: 'ยังเคลื่อนไหวได้ และไม่มีภาวะสับสนทางสมอง'
+};
+
+function ChoiceCards<T extends string | number>({ name, choices, selected, highlight, onSelect }: { name: string; choices: Array<Choice<T>>; selected: T | undefined; highlight?: T | null; onSelect: (value: T) => void }) {
+  return <div className="mt-1 space-y-2">{choices.map((choice) => <label key={String(choice.value)} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${selected === choice.value ? 'border-primary bg-sky-50' : 'border-slate-200'}`}>
+    <input type="radio" name={name} checked={selected === choice.value} onChange={() => onSelect(choice.value)} className="mt-1 h-5 w-5"/>
+    <span className="flex-1"><span className="font-semibold">{choice.label}</span>{highlight === choice.value && <span className="ml-2"><Status tone="warning">ระบบแนะนำ</Status></span>}<span className="block text-sm text-slate-600">{choice.detail}</span></span>
+  </label>)}</div>;
+}
+
 export function ClassificationForm() {
   const { id: patientId = '' } = useParams();
   const [outcome, setOutcome] = useState<Outcome>(null);
-  const form = useForm<z.infer<typeof classificationSchema>>({ resolver: zodResolver(classificationSchema), defaultValues: { mobilityStatus: 'UNKNOWN', cognitiveStatus: 'UNKNOWN', terminalStatus: 'UNKNOWN', groupNumber: 1, rationale: '' } });
-  const { mobilityStatus, cognitiveStatus, terminalStatus } = form.watch();
+  // No default group: the CM chooses one deliberately after seeing the suggestion.
+  const form = useForm<z.infer<typeof classificationSchema>>({ resolver: zodResolver(classificationSchema), defaultValues: { mobilityStatus: 'UNKNOWN', cognitiveStatus: 'UNKNOWN', terminalStatus: 'UNKNOWN', rationale: '' } });
+  const values = form.watch();
+  const { mobilityStatus, cognitiveStatus, terminalStatus, groupNumber } = values;
   // Preview only: the suggestion rules do not depend on the ADL score. The server re-runs them
   // against the latest approved ADL assessment when the CM confirms.
   const suggestion = suggestLtcGroup({ adlTotal: 0, mobilityStatus, cognitiveStatus, terminalStatus });
-  return <FormPage title="ยืนยันกลุ่ม LTC" description="คำแนะนำไม่ใช่การยืนยัน CM ต้องเลือกและระบุเหตุผลเสมอ ระบบใช้คะแนน ADL ที่อนุมัติล่าสุดของผู้รับบริการ">
+  const selectedGroup = groupNumber === undefined ? undefined : Number(groupNumber);
+  const overridesSuggestion = suggestion.groupNumber !== null && selectedGroup !== undefined && selectedGroup !== suggestion.groupNumber;
+  const errors = form.formState.errors;
+  return <FormPage title="ยืนยันกลุ่ม LTC" description="ตอบ 3 ข้อตามสภาพปัจจุบัน ระบบจะแนะนำกลุ่ม แต่ CM ต้องเป็นผู้เลือกและระบุเหตุผลเสมอ">
     <PatientBanner patientId={patientId}/>
-    <form onSubmit={form.handleSubmit(({ groupNumber, rationale, ...observation }) => attempt(setOutcome, () => post('/ltc-classifications', { patientId, observation, groupNumber, rationale }), 'ยืนยันกลุ่มแล้ว'))} className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-3">
-        <label className={labelClass}>การเคลื่อนไหว<select {...form.register('mobilityStatus')} className={fieldClass}><option value="UNKNOWN">ยังไม่ทราบ</option><option value="INDEPENDENT">อิสระ</option><option value="ASSISTED">ต้องช่วย</option><option value="DEPENDENT">ไม่สามารถเอง</option></select></label>
-        <label className={labelClass}>การรับรู้<select {...form.register('cognitiveStatus')} className={fieldClass}><option value="UNKNOWN">ยังไม่ทราบ</option><option value="NO_SIGNIFICANT_DISTURBANCE">ไม่พบความผิดปกติสำคัญ</option><option value="DISTURBANCE">พบความผิดปกติ</option></select></label>
-        <label className={labelClass}>ระยะสุดท้าย<select {...form.register('terminalStatus')} className={fieldClass}><option value="UNKNOWN">ยังไม่ทราบ</option><option value="NOT_CONFIRMED">ไม่ยืนยัน</option><option value="CONFIRMED">ยืนยันแล้ว</option></select></label>
-      </div>
-      <div className="rounded-xl bg-amber-50 p-4">คำแนะนำ: {suggestion.groupNumber ? <Status tone="warning">กลุ่ม {suggestion.groupNumber}</Status> : <Status tone="danger">ต้องให้ CM ทบทวน</Status>}</div>
-      <label className={labelClass}>กลุ่มที่ CM ยืนยัน<select {...form.register('groupNumber')} className={fieldClass}>{[1, 2, 3, 4].map((group) => <option value={group} key={group}>กลุ่ม {group}</option>)}</select></label>
-      <label className={labelClass}>เหตุผล<textarea {...form.register('rationale')} className={fieldClass}/><span className="text-xs text-danger">{form.formState.errors.rationale?.message}</span></label>
+    <p className="mb-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">ต้องมีแบบประเมิน ADL ที่อนุมัติแล้วก่อน ระบบจะบันทึกคะแนน ADL ล่าสุดของผู้รับบริการไว้กับผลจัดกลุ่ม</p>
+    <form onSubmit={form.handleSubmit(({ groupNumber: confirmedGroup, rationale, ...observation }) => attempt(setOutcome, () => post('/ltc-classifications', { patientId, observation, groupNumber: confirmedGroup, rationale }), 'ยืนยันกลุ่มแล้ว'))} className="space-y-4">
+      {(Object.keys(OBSERVATION_QUESTIONS) as Array<keyof Observation>).map((key) => {
+        const question = OBSERVATION_QUESTIONS[key];
+        return <fieldset key={key} className="rounded-xl border border-slate-200 p-3">
+          <legend className="px-1 font-bold">{question.title}</legend><p className="text-sm text-slate-500">{question.hint}</p>
+          <ChoiceCards name={key} choices={question.choices as Array<Choice<string>>} selected={values[key]} onSelect={(value) => form.setValue(key, value as never, { shouldValidate: true })}/>
+        </fieldset>;
+      })}
+      <div className="rounded-xl bg-amber-50 p-4"><p className="font-bold">คำแนะนำของระบบ: {suggestion.groupNumber ? <Status tone="warning">กลุ่ม {suggestion.groupNumber}</Status> : <Status tone="danger">ต้องให้ CM พิจารณา</Status>}</p><p className="mt-1 text-sm text-slate-700">{SUGGESTION_REASONS[suggestion.rationaleCode] ?? suggestion.rationaleCode}</p></div>
+      <fieldset className="rounded-xl border border-slate-200 p-3">
+        <legend className="px-1 font-bold">4. กลุ่มที่ CM ยืนยัน</legend>
+        <ChoiceCards name="groupNumber" choices={LTC_GROUPS} selected={selectedGroup} highlight={suggestion.groupNumber} onSelect={(value) => form.setValue('groupNumber', value, { shouldValidate: true })}/>
+        {errors.groupNumber && <p className="mt-1 text-xs text-danger">กรุณาเลือกกลุ่ม</p>}
+      </fieldset>
+      <label className={labelClass}>เหตุผลประกอบการยืนยัน<span className="block text-xs font-normal text-slate-500">{overridesSuggestion ? 'กลุ่มที่เลือกต่างจากคำแนะนำของระบบ กรุณาอธิบายเหตุผลทางคลินิก' : 'สรุปข้อมูลที่ใช้ตัดสิน อย่างน้อย 10 ตัวอักษร'}</span><textarea {...form.register('rationale')} className={fieldClass}/><span className="text-xs text-danger">{errors.rationale?.message}</span></label>
       <Button type="submit" disabled={form.formState.isSubmitting}>ยืนยันกลุ่ม</Button><OutcomeMessage outcome={outcome}/>
     </form>
   </FormPage>;
