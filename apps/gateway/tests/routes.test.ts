@@ -297,6 +297,12 @@ describe('PILOT with password sign-in', () => {
     expect((await body(response)).data).toEqual({ mode: 'PILOT', passwordAuth: true, googleAuth: false });
   });
 
+  it('starts with a GOOGLE_CLIENT_ID left over from the DEMO but keeps Google sign-in closed', async () => {
+    const env = makeEnv({ APP_MODE: 'PILOT', APP_ORIGIN: origin, PASSWORD_AUTH_ENABLED: 'true' });
+    expect((await body(await call(pilotRequest('/health'), env))).data).toEqual({ mode: 'PILOT', passwordAuth: true, googleAuth: false });
+    expect((await call(pilotRequest('/auth/google', { method: 'POST', body: json({ idToken: 'x' }) }), env)).status).toBe(404);
+  });
+
   it('requires TOTP from caregivers too', async () => {
     stubGas(() => cgActor);
     const response = await call(pilotRequest('/auth/password/login', { method: 'POST', body: json({ identifier: 'cg.one', password: 'correct horse battery' }) }), pilot());

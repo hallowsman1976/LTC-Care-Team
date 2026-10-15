@@ -76,7 +76,9 @@ export function assertOperationalMode(env: Env): void {
   assertSecret('CID_LOOKUP_SECRET', env.CID_LOOKUP_SECRET);
   assertSecret('CID_ENCRYPTION_KEY_BASE64', env.CID_ENCRYPTION_KEY_BASE64, 40);
   assertSecret('MFA_ENCRYPTION_KEY_BASE64', env.MFA_ENCRYPTION_KEY_BASE64, 40);
-  if (env.PASSWORD_AUTH_ENABLED === 'true' && !env.GOOGLE_CLIENT_ID) return;
+  // Password sign-in needs no Google settings; a leftover GOOGLE_CLIENT_ID alone never opens Google sign-in
+  // (isGoogleAuthEnabled also wants GOOGLE_HOSTED_DOMAIN in PILOT).
+  if (env.PASSWORD_AUTH_ENABLED === 'true') return;
   // Google sign-in: configured completely and limited to the organisation's Workspace domain.
   if (!env.GOOGLE_HOSTED_DOMAIN || placeholders.includes(env.GOOGLE_HOSTED_DOMAIN)) {
     throw new Error('INVALID_CONFIG:GOOGLE_HOSTED_DOMAIN');
