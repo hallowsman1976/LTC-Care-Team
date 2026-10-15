@@ -1,11 +1,12 @@
+import { z } from 'zod';
 import { caregiverCreateSchema, caregiverGetSchema, caregiverUpdateSchema, DEMO_ACTORS, demoCaregiverDetail, demoPatientDetail, patientCreateSchema, patientGetSchema, patientImportSchema, patientUpdateSchema, READ_ROUTES, WRITE_ROUTES, type Actor, type Capability, type Page } from '@smart-ltc/shared';
 import type { Env } from './env';
-import { assertOperationalMode, isDemoMode, isLocalDemo, requireSecret } from './env';
+import { assertOperationalMode, isDemoMode, isGoogleAuthEnabled, isLocalDemo, isPasswordAuthEnabled, requireSecret, requiresTotp } from './env';
 import { isSupportedBrowser } from './browser';
 import { failure, json } from './responses';
 import { createSession, expiredSessionCookie, loadSession, revokeSession, sessionCookie } from './session';
 import { callGas } from './gasProxy';
-import { enforceLoginRateLimit, resetLoginRateLimit, verifyGoogleToken, verifyPasswordAtGas, verifyTotp } from './auth';
+import { completeTotpEnrollment, enforceLoginRateLimit, hasTotp, resetLoginRateLimit, resetTotp, startTotpEnrollment, verifyGoogleToken, verifyPasswordAtGas, verifyTotp } from './auth';
 import { decryptCid, encryptCid, hmacBase64 } from './crypto';
 import { errorResponse, gasData, readGasEnvelope, relayGas } from './errors';
 
@@ -34,6 +35,13 @@ function secure(response: Response): Response {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+const mfaResetSchema = z.object({ userId: z.string().regex(/^[\w.-]{1,80}$/) });
+
+async function securityEvent(env: Env, actorId: string, eventType: string, reason: string): Promise<void> {
+  await env.SECURITY_DB.prepare('INSERT INTO security_events (event_id, actor_id, event_type, reason, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(crypto.randomUUID(), actorId, eventType, reason, new Date().toISOString()).run();
+}
+
 const ok = <T>(data: T, requestId: string, headers?: HeadersInit) => json(200, { ok: true, code: 'OK', message: '', data, requestId }, headers);
 const has = (actor: Actor, capability: Capability) => actor.capabilities.includes(capability);
 
@@ -44,30 +52,45 @@ async function handle(request: Request, env: Env): Promise<Response> {
   const path = routePath(request);
   const localDemo = isLocalDemo(request, env);
 
-  if (path === '/health') return ok({ mode: env.APP_MODE }, requestId);
+  if (path === '/health') return ok({ mode: env.APP_MODE, passwordAuth: isPasswordAuthEnabled(env), googleAuth: isGoogleAuthEnabled(env) }, requestId);
   if (path === '/browser-support') return ok({ supported: isSupportedBrowser(request.headers.get('user-agent') ?? '') }, requestId);
 
   if (path === '/auth/password/login' && request.method === 'POST') {
-    if (!isDemoMode(env)) return failure(404, 'NOT_FOUND', 'ไม่พบรายการที่ร้องขอ', requestId);
+    if (!isPasswordAuthEnabled(env)) return failure(404, 'NOT_FOUND', 'ไม่พบรายการที่ร้องขอ', requestId);
     const body = await request.json<{ identifier?: string; password?: string; totpCode?: string }>();
     const identifier = String(body.identifier ?? '').trim();
     await enforceLoginRateLimit(request, identifier, env);
     const actor = await verifyPasswordAtGas(identifier, String(body.password ?? ''), env);
-    if (['ADMIN', 'CM'].includes(actor.role) && !await verifyTotp(actor.userId, String(body.totpCode ?? ''), env)) {
-      throw new Error('MFA_INVALID');
+    if (requiresTotp(env, actor.role)) {
+      if (!await hasTotp(actor.userId, env)) {
+        // First sign-in (or after a reset): the password was right, so let the user set up their app.
+        await resetLoginRateLimit(request, identifier, env);
+        await securityEvent(env, actor.userId, 'MFA_ENROLLMENT_STARTED', '');
+        return ok(await startTotpEnrollment(actor, identifier.toLowerCase(), isDemoMode(env) ? 'Smart LTC Demo' : 'Smart LTC Care', env), requestId);
+      }
+      if (!await verifyTotp(actor.userId, String(body.totpCode ?? ''), env)) throw new Error('MFA_INVALID');
     }
     await resetLoginRateLimit(request, identifier, env);
     const created = await createSession(actor, env);
+    await securityEvent(env, actor.userId, 'LOGIN_PASSWORD', '');
+    return ok(actor, requestId, { 'set-cookie': sessionCookie(created.token) });
+  }
+  if (path === '/auth/mfa/enroll' && request.method === 'POST') {
+    if (!isPasswordAuthEnabled(env)) return failure(404, 'NOT_FOUND', 'ไม่พบรายการที่ร้องขอ', requestId);
+    const body = await request.json<{ enrollmentToken?: string; totpCode?: string }>();
+    const actor = await completeTotpEnrollment(String(body.enrollmentToken ?? ''), String(body.totpCode ?? ''), env);
+    const created = await createSession(actor, env);
+    await securityEvent(env, actor.userId, 'MFA_ENROLLED', '');
     return ok(actor, requestId, { 'set-cookie': sessionCookie(created.token) });
   }
   if (path === '/auth/google' && request.method === 'POST') {
+    if (!isGoogleAuthEnabled(env)) return failure(404, 'NOT_FOUND', 'ไม่พบรายการที่ร้องขอ', requestId);
     const body = await request.json<{ idToken?: string }>();
     const subject = await verifyGoogleToken(String(body.idToken ?? ''), env);
     const envelope = await readGasEnvelope<Actor>(await callGas(env, 'anonymous', 'auth.resolveIdentity', { subject }));
     if (!envelope.ok || !envelope.data) return failure(401, 'IDENTITY_NOT_ALLOWED', 'บัญชีนี้ไม่ได้รับอนุญาต', requestId);
     const created = await createSession(envelope.data, env);
-    await env.SECURITY_DB.prepare('INSERT INTO security_events (event_id, actor_id, event_type, reason, created_at) VALUES (?, ?, ?, ?, ?)')
-      .bind(crypto.randomUUID(), envelope.data.userId, 'LOGIN_GOOGLE', env.GOOGLE_HOSTED_DOMAIN ?? '', new Date().toISOString()).run();
+    await securityEvent(env, envelope.data.userId, 'LOGIN_GOOGLE', env.GOOGLE_HOSTED_DOMAIN ?? '');
     return ok(envelope.data, requestId, { 'set-cookie': sessionCookie(created.token) });
   }
 
@@ -82,6 +105,15 @@ async function handle(request: Request, env: Env): Promise<Response> {
     return ok({ loggedOut: true }, requestId, { 'set-cookie': expiredSessionCookie() });
   }
   if (path === '/auth/me' && request.method === 'GET') return ok(actor, requestId);
+
+  if (path === '/admin/users/mfa-reset' && request.method === 'POST') {
+    if (!has(actor, 'users:manage')) return failure(403, 'FORBIDDEN', 'ไม่มีสิทธิ์จัดการผู้ใช้งาน', requestId);
+    const { userId } = mfaResetSchema.parse(await request.json());
+    if (localDemo) return ok({ demo: true, userId }, requestId);
+    await resetTotp(userId, env);
+    await securityEvent(env, actor.userId, 'MFA_RESET', userId);
+    return ok({ userId }, requestId);
+  }
 
   const read = READ_ROUTES[path];
   if (read && request.method === 'GET') {
@@ -192,8 +224,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
       const cid = await decryptCid(String(row.cidCiphertext), requireSecret(env, 'CID_ENCRYPTION_KEY_BASE64'));
       lines.push([row.hn, cid, row.fullName, row.birthDate].map((value) => escape(String(value ?? ''))).join(','));
     }
-    await env.SECURITY_DB.prepare('INSERT INTO security_events (event_id, actor_id, event_type, reason, created_at) VALUES (?, ?, ?, ?, ?)')
-      .bind(crypto.randomUUID(), actor.userId, 'PATIENT_EXPORT', reason, new Date().toISOString()).run();
+    await securityEvent(env, actor.userId, 'PATIENT_EXPORT', reason);
     const label = isDemoMode(env) ? `# DEMO ONLY ${new Date().toISOString()}\r\n` : '';
     return new Response(`﻿${label}${lines.join('\r\n')}`, {
       headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="smart-ltc-patients.csv"', 'cache-control': 'no-store', ...(isDemoMode(env) ? { 'x-demo-only': 'true' } : {}) }

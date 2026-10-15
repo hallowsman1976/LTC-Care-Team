@@ -17,9 +17,15 @@ await build({
       'function setDemoCredential(userId, identifier, password) { return SmartLtc.setDemoCredential(userId, identifier, password); }',
       'function diagnoseDemoLogin(identifier, password) { return SmartLtc.diagnoseDemoLogin(identifier, password); }',
       'function seedDemoData(cgIdentifier) { return SmartLtc.seedDemoData(cgIdentifier); }',
+      'function createPilotCaseManager(input) { return SmartLtc.createPilotCaseManager(input); }',
+      'function renewCaseManagerCredential(username, credentialType, qualificationExpiry) { return SmartLtc.renewCaseManagerCredential(username, credentialType, qualificationExpiry); }',
+      'function resetUserPassword(username, newPassword) { return SmartLtc.resetUserPassword(username, newPassword); }',
+      'function addApprovedRuleset(input) { return SmartLtc.addApprovedRuleset(input); }',
       'function runVisitScheduler() { return SmartLtc.runVisitScheduler(); }',
       // Trigger handlers receive an event object; never pass it through as a parameter.
       'function archiveAuditLogs() { return SmartLtc.archiveAuditLogs(); }',
+      'function backupWorkbook() { return SmartLtc.backupWorkbook(); }',
+      'function installBackupTrigger() { return SmartLtc.installBackupTrigger(); }',
       'function installAuditArchiveTrigger() { return SmartLtc.installAuditArchiveTrigger(); }',
       'function seedLoadTestData(options) { return SmartLtc.seedLoadTestData(options); }',
       'function runLoadProbe(repeats) { return SmartLtc.runLoadProbe(repeats); }'

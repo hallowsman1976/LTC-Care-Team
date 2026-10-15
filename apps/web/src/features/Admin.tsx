@@ -29,12 +29,36 @@ function CredentialStatus({ until }: { until?: string | undefined }) {
   return <Status tone={days <= 30 ? 'warning' : 'neutral'}>ใบประกอบฯ ถึง {thaiDate(until)}</Status>;
 }
 
+/** Removes a user's authenticator so they set up a new one at their next sign-in (lost or changed phone). */
+function MfaReset({ user }: { user: UserRow }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'done'>('idle');
+  const [error, setError] = useState('');
+  const reset = async () => {
+    if (!window.confirm(`รีเซ็ตแอปยืนยันตัวตนของ ${user.displayName || user.username}? ผู้ใช้จะถูกออกจากระบบ และต้องตั้งค่าแอปใหม่เมื่อเข้าสู่ระบบครั้งถัดไป`)) return;
+    setState('busy');
+    setError('');
+    try {
+      await post('/admin/users/mfa-reset', { userId: user.userId });
+      setState('done');
+    } catch (reason) {
+      setError(messageOf(reason));
+      setState('idle');
+    }
+  };
+  if (state === 'done') return <p role="status" className="mt-2 text-sm text-success">รีเซ็ตแล้ว ผู้ใช้ต้องตั้งค่าแอปใหม่เมื่อเข้าสู่ระบบ</p>;
+  return <div className="mt-2">
+    <button type="button" onClick={reset} disabled={state === 'busy'} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-sky-50">รีเซ็ตแอปยืนยันตัวตน</button>
+    {error && <p role="alert" className="mt-1 text-sm text-danger">{error}</p>}
+  </div>;
+}
+
 export function UserDirectory({ actor }: { actor: Actor }) {
   const users = useQuery({ queryKey: ['admin', 'users'], queryFn: () => api<ListPage<UserRow>>('/admin/users') });
   const [search, setSearch] = useState('');
   const [role, setRole] = useState<Role | ''>('');
   const items = users.data?.items ?? [];
   const me = items.find((user) => user.userId === actor.userId);
+  const canManage = actor.capabilities.includes('users:manage');
   const visible = items.filter((user) => (!role || user.role === role) && `${user.displayName} ${user.username} ${user.userId}`.toLowerCase().includes(search.toLowerCase()));
   const countOf = (value: Role) => items.filter((user) => user.role === value).length;
   return <AdminPage title="ข้อมูลผู้ใช้งาน" description="บัญชีทั้งหมดในระบบ บทบาท ชื่อที่ใช้เข้าสู่ระบบ และสถานะ ระบบไม่แสดงรหัสผ่าน">
@@ -59,6 +83,7 @@ export function UserDirectory({ actor }: { actor: Actor }) {
           <div className="flex flex-col items-end gap-1"><Status tone="neutral">{ROLE_NAMES[user.role] ?? user.role}</Status><Status tone={user.enabled ? 'success' : 'danger'}>{user.enabled ? 'ใช้งาน' : 'ปิดใช้งาน'}</Status></div>
         </div>
         {user.role === 'CM' && <div className="mt-2"><CredentialStatus until={user.credentialValidUntil}/></div>}
+        {canManage && user.userId !== actor.userId && <MfaReset user={user}/>}
       </Card>)}
     </div>}
   </AdminPage>;

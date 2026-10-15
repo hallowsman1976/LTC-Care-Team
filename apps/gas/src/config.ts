@@ -12,7 +12,16 @@ export function requireOperationalMode(): void {
     getRequiredProperty('SPREADSHEET_ID');
     const secret = getRequiredProperty('GATEWAY_ASSERTION_SECRET');
     if (secret.length < 32 || secret.includes('replace')) throw new Error('INVALID_CONFIG:GATEWAY_ASSERTION_SECRET');
+    if (isPasswordAuthEnabled()) {
+      const pepper = getRequiredProperty('PASSWORD_PEPPER');
+      if (pepper.length < 32 || pepper.includes('replace')) throw new Error('INVALID_CONFIG:PASSWORD_PEPPER');
+    }
   }
+}
+
+/** DEMO always; PILOT only with Script Property PASSWORD_AUTH_ENABLED=true (no Google Workspace). */
+export function isPasswordAuthEnabled(): boolean {
+  return getAppMode() === 'DEMO' || PropertiesService.getScriptProperties().getProperty('PASSWORD_AUTH_ENABLED') === 'true';
 }
 
 export function requireDemoMode(): void {

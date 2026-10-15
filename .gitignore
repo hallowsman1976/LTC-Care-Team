@@ -20,3 +20,10 @@ Thumbs.db
 .claude/
 .agents/
 skills-lock.json
+
+# Committed on purpose: non-secret production build settings for the web app.
+!apps/web/.env.production
+
+# Generated PILOT secrets (scripts/pilot/generate-secrets.mjs). Never commit.
+*.secrets.local.json
+cm-totp-qr.png

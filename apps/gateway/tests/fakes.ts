@@ -20,6 +20,10 @@ export class FakeD1 {
               const row = db.sessions.get(String(args[0]));
               return (row && row.revoked_at === null ? { session_json: row.session_json } : null) as T | null;
             }
+            if (sql.startsWith('SELECT 1 AS found FROM user_security')) {
+              const row = db.userSecurity.get(String(args[0]));
+              return (row && row.mfa_enabled === 1 ? { found: 1 } : null) as T | null;
+            }
             if (sql.startsWith('SELECT totp_secret_ciphertext FROM user_security')) {
               const row = db.userSecurity.get(String(args[0]));
               return (row && row.mfa_enabled === 1 ? { totp_secret_ciphertext: row.totp_secret_ciphertext } : null) as T | null;
@@ -32,6 +36,16 @@ export class FakeD1 {
             } else if (sql.startsWith('UPDATE sessions SET session_json')) {
               const row = db.sessions.get(String(args[1]));
               if (row) row.session_json = args[0];
+            } else if (sql.startsWith('UPDATE sessions SET revoked_at') && sql.includes('json_extract')) {
+              for (const row of db.sessions.values()) {
+                const session = JSON.parse(String(row.session_json)) as { actor: { userId: string } };
+                if (row.revoked_at === null && session.actor.userId === args[1]) row.revoked_at = args[0];
+              }
+            } else if (sql.startsWith('INSERT INTO user_security')) {
+              if (db.userSecurity.has(String(args[0]))) throw new Error('UNIQUE constraint failed: user_security.user_id');
+              db.userSecurity.set(String(args[0]), { totp_secret_ciphertext: args[1], mfa_enabled: 1, recovery_codes_json: args[2], updated_at: args[3] });
+            } else if (sql.startsWith('DELETE FROM user_security')) {
+              db.userSecurity.delete(String(args[0]));
             } else if (sql.startsWith('UPDATE sessions SET revoked_at')) {
               const row = db.sessions.get(String(args[1]));
               if (row) row.revoked_at = args[0];
@@ -72,7 +86,7 @@ export function stubGas(handler: (call: GasCall) => unknown): GasCall[] {
   return calls;
 }
 
-export function makeEnv(overrides: Partial<Env> = {}): Env & { SECURITY_DB: FakeD1 & D1Database; SECURITY_KV: FakeKV & KVNamespace } {
+export function makeEnv(overrides: { [K in keyof Env]?: Env[K] | undefined } = {}): Env & { SECURITY_DB: FakeD1 & D1Database; SECURITY_KV: FakeKV & KVNamespace } {
   const key = btoa(String.fromCharCode(...new Uint8Array(32).fill(7)));
   return {
     APP_MODE: 'DEMO',

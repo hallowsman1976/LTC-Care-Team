@@ -210,12 +210,115 @@ describe('password login', () => {
     expect((await body(replay)).code).toBe('MFA_INVALID');
   });
 
-  it('asks for MFA enrolment with 403 instead of a server error', async () => {
+  it('offers enrolment instead of a session when the user has no TOTP yet', async () => {
     const env = makeEnv();
     stubGas(() => cmActor);
-    const response = await call(request('/auth/password/login', { method: 'POST', body: json({ identifier: 'usr-cm', password: 'correct horse battery', totpCode: '123456' }) }), env);
-    expect(response.status).toBe(403);
-    expect((await body(response)).code).toBe('MFA_ENROLLMENT_REQUIRED');
+    const response = await call(request('/auth/password/login', { method: 'POST', body: json({ identifier: 'cm.one', password: 'correct horse battery', totpCode: '123456' }) }), env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('set-cookie')).toBeNull();
+    expect((await body(response)).data).toMatchObject({ status: 'MFA_ENROLLMENT_REQUIRED', accountLabel: 'cm.one' });
+    expect(env.SECURITY_DB.userSecurity.size).toBe(0);
+  });
+});
+
+async function startEnrollment(env: ReturnType<typeof makeEnv>, actor: typeof cmActor | typeof cgActor) {
+  stubGas(() => actor);
+  const response = await call(request('/auth/password/login', { method: 'POST', body: json({ identifier: actor.userId, password: 'correct horse battery' }) }), env);
+  return (await body(response)).data as { enrollmentToken: string; secret: string; otpauthUri: string };
+}
+
+describe('TOTP self-enrolment', () => {
+  it('stores the secret and signs in once the user proves a current code', async () => {
+    const env = makeEnv();
+    const challenge = await startEnrollment(env, cmActor);
+    expect(challenge.otpauthUri).toContain(`secret=${challenge.secret}`);
+    const enroll = await call(request('/auth/mfa/enroll', { method: 'POST', body: json({ enrollmentToken: challenge.enrollmentToken, totpCode: await totpCode(challenge.secret, Math.floor(Date.now() / 30_000)) }) }), env);
+    expect(enroll.status).toBe(200);
+    expect(enroll.headers.get('set-cookie')).toContain('__Host-ltc_session=');
+    expect(env.SECURITY_DB.userSecurity.get('usr-cm')).toMatchObject({ mfa_enabled: 1 });
+    expect(env.SECURITY_DB.securityEvents.map((event) => event.event_type)).toContain('MFA_ENROLLED');
+    // The token is single-use.
+    const again = await call(request('/auth/mfa/enroll', { method: 'POST', body: json({ enrollmentToken: challenge.enrollmentToken, totpCode: '000000' }) }), env);
+    expect((await body(again)).code).toBe('MFA_ENROLLMENT_EXPIRED');
+  });
+
+  it('drops the pending enrolment after five wrong codes', async () => {
+    const env = makeEnv();
+    const challenge = await startEnrollment(env, cmActor);
+    const now = Math.floor(Date.now() / 30_000);
+    const valid = new Set(await Promise.all([now - 1, now, now + 1].map((counter) => totpCode(challenge.secret, counter))));
+    const wrong = ['000000', '111111', '222222', '333333'].find((code) => !valid.has(code))!;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const response = await call(request('/auth/mfa/enroll', { method: 'POST', body: json({ enrollmentToken: challenge.enrollmentToken, totpCode: wrong }) }), env);
+      expect((await body(response)).code).toBe('MFA_INVALID');
+    }
+    const late = await call(request('/auth/mfa/enroll', { method: 'POST', body: json({ enrollmentToken: challenge.enrollmentToken, totpCode: await totpCode(challenge.secret, now) }) }), env);
+    expect((await body(late)).code).toBe('MFA_ENROLLMENT_EXPIRED');
+    expect(env.SECURITY_DB.userSecurity.size).toBe(0);
+  });
+
+  it('never replaces a TOTP that was enrolled in the meantime', async () => {
+    const env = makeEnv();
+    const first = await startEnrollment(env, cmActor);
+    const second = await startEnrollment(env, cmActor);
+    const now = Math.floor(Date.now() / 30_000);
+    await call(request('/auth/mfa/enroll', { method: 'POST', body: json({ enrollmentToken: first.enrollmentToken, totpCode: await totpCode(first.secret, now) }) }), env);
+    const response = await call(request('/auth/mfa/enroll', { method: 'POST', body: json({ enrollmentToken: second.enrollmentToken, totpCode: await totpCode(second.secret, now) }) }), env);
+    expect(response.status).toBe(409);
+    expect((await body(response)).code).toBe('MFA_ALREADY_ENROLLED');
+  });
+
+  it("lets a user manager reset another user's TOTP and ends that user's sessions", async () => {
+    const env = makeEnv();
+    const cgCookie = await loginAs(env, cgActor);
+    const cmCookie = await loginAs(env, cmActor);
+    const reset = await call(request('/admin/users/mfa-reset', { method: 'POST', headers: { cookie: `__Host-ltc_session=${cmCookie}` }, body: json({ userId: 'usr-cg' }) }), env);
+    expect(reset.status).toBe(200);
+    expect(env.SECURITY_DB.userSecurity.has('usr-cg')).toBe(false);
+    const me = await call(request('/auth/me', { headers: { cookie: `__Host-ltc_session=${cgCookie}` } }), env);
+    expect(me.status).toBe(401);
+  });
+
+  it('refuses a TOTP reset without users:manage', async () => {
+    const env = makeEnv();
+    const cookie = await loginAs(env, cgActor);
+    const reset = await call(request('/admin/users/mfa-reset', { method: 'POST', headers: { cookie: `__Host-ltc_session=${cookie}` }, body: json({ userId: 'usr-cm' }) }), env);
+    expect(reset.status).toBe(403);
+  });
+});
+
+describe('PILOT with password sign-in', () => {
+  const origin = 'https://ltc-demo.example.org';
+  const pilot = () => makeEnv({ APP_MODE: 'PILOT', APP_ORIGIN: origin, PASSWORD_AUTH_ENABLED: 'true', GOOGLE_CLIENT_ID: undefined });
+  const pilotRequest = (path: string, init: RequestInit = {}) => request(path, { ...init, headers: { ...init.headers as Record<string, string>, origin } });
+
+  it('starts without Google settings and reports the sign-in methods', async () => {
+    const response = await call(pilotRequest('/health'), pilot());
+    expect((await body(response)).data).toEqual({ mode: 'PILOT', passwordAuth: true, googleAuth: false });
+  });
+
+  it('requires TOTP from caregivers too', async () => {
+    stubGas(() => cgActor);
+    const response = await call(pilotRequest('/auth/password/login', { method: 'POST', body: json({ identifier: 'cg.one', password: 'correct horse battery' }) }), pilot());
+    expect((await body(response)).data).toMatchObject({ status: 'MFA_ENROLLMENT_REQUIRED' });
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('keeps Google sign-in closed when it is not configured', async () => {
+    const response = await call(pilotRequest('/auth/google', { method: 'POST', body: json({ idToken: 'x' }) }), pilot());
+    expect(response.status).toBe(404);
+  });
+
+  it('closes password sign-in unless it is enabled', async () => {
+    const env = makeEnv({ APP_MODE: 'PILOT', APP_ORIGIN: origin, GOOGLE_HOSTED_DOMAIN: 'org.example' });
+    const response = await call(pilotRequest('/auth/password/login', { method: 'POST', body: json({ identifier: 'x', password: 'y' }) }), env);
+    expect(response.status).toBe(404);
+  });
+
+  it('fails closed when neither sign-in method is configured', async () => {
+    const env = makeEnv({ APP_MODE: 'PILOT', APP_ORIGIN: origin, GOOGLE_CLIENT_ID: undefined });
+    const response = await call(pilotRequest('/health'), env);
+    expect(response.status).toBe(500);
   });
 });
 

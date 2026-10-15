@@ -2,12 +2,13 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { Actor } from '@smart-ltc/shared';
 import { requireSecret, type Env } from './env';
 import { callGas } from './gasProxy';
-import { decryptText } from './crypto';
+import { decryptText, encryptText, sha256Hex } from './crypto';
 import { gasData, HttpError } from './errors';
 
 const googleKeys = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 
 export async function verifyGoogleToken(idToken: string, env: Env): Promise<string> {
+  if (!env.GOOGLE_CLIENT_ID) throw new Error('GOOGLE_IDENTITY_INVALID');
   let payload;
   try {
     ({ payload } = await jwtVerify(idToken, googleKeys, {
@@ -26,8 +27,18 @@ export async function verifyPasswordAtGas(identifier: string, password: string, 
   return gasData<Actor>(await callGas(env, 'anonymous', 'auth.passwordVerify', { identifier, password }));
 }
 
+const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+function base32Encode(bytes: Uint8Array): string {
+  let bits = '';
+  for (const byte of bytes) bits += byte.toString(2).padStart(8, '0');
+  let output = '';
+  for (let index = 0; index + 5 <= bits.length; index += 5) output += BASE32[Number.parseInt(bits.slice(index, index + 5), 2)];
+  return output;
+}
+
 function base32Decode(value: string): Uint8Array {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const alphabet = BASE32;
   const clean = value.toUpperCase().replace(/=+$/, '').replace(/\s/g, '');
   let bits = '';
   for (const char of clean) {
@@ -59,7 +70,7 @@ export async function verifyTotp(userId: string, code: string, env: Env): Promis
   const row = await env.SECURITY_DB.prepare('SELECT totp_secret_ciphertext FROM user_security WHERE user_id = ? AND mfa_enabled = 1')
     .bind(userId).first<{ totp_secret_ciphertext: string }>();
   if (!row) throw new Error('MFA_ENROLLMENT_REQUIRED');
-  const secret = await decryptText(row.totp_secret_ciphertext, requireSecret(env, 'MFA_ENCRYPTION_KEY_BASE64'), `smart-ltc:totp:${userId}:v1`);
+  const secret = await decryptText(row.totp_secret_ciphertext, requireSecret(env, 'MFA_ENCRYPTION_KEY_BASE64'), totpContext(userId));
   const now = Math.floor(Date.now() / 30_000);
   const lastUsedKey = `totp-last:${userId}`;
   const lastUsed = Number(await env.SECURITY_KV.get(lastUsedKey) ?? '-1');
@@ -69,6 +80,77 @@ export async function verifyTotp(userId: string, code: string, env: Env): Promis
     return true;
   }
   return false;
+}
+
+const totpContext = (userId: string) => `smart-ltc:totp:${userId}:v1`;
+
+export async function hasTotp(userId: string, env: Env): Promise<boolean> {
+  const row = await env.SECURITY_DB.prepare('SELECT 1 AS found FROM user_security WHERE user_id = ? AND mfa_enabled = 1').bind(userId).first();
+  return Boolean(row);
+}
+
+interface PendingEnrollment { actor: Actor; secretCiphertext: string; attempts: number }
+
+const ENROLLMENT_TTL_SECONDS = 600;
+const ENROLLMENT_MAX_ATTEMPTS = 5;
+const enrollmentKey = async (token: string) => `mfa-enroll:${await sha256Hex(token)}`;
+
+export interface EnrollmentChallenge { status: 'MFA_ENROLLMENT_REQUIRED'; enrollmentToken: string; secret: string; otpauthUri: string; accountLabel: string }
+
+/**
+ * After a correct password for a user without TOTP: a fresh secret, held encrypted in KV for ten
+ * minutes until the user proves their authenticator app produces its codes. Nothing is stored in
+ * D1 and no session exists until then.
+ */
+export async function startTotpEnrollment(actor: Actor, accountLabel: string, issuer: string, env: Env): Promise<EnrollmentChallenge> {
+  const secret = base32Encode(crypto.getRandomValues(new Uint8Array(20)));
+  const secretCiphertext = await encryptText(secret, requireSecret(env, 'MFA_ENCRYPTION_KEY_BASE64'), totpContext(actor.userId));
+  const tokenBytes = crypto.getRandomValues(new Uint8Array(32));
+  const enrollmentToken = Array.from(tokenBytes, (value) => value.toString(16).padStart(2, '0')).join('');
+  const pending: PendingEnrollment = { actor, secretCiphertext, attempts: 0 };
+  await env.SECURITY_KV.put(await enrollmentKey(enrollmentToken), JSON.stringify(pending), { expirationTtl: ENROLLMENT_TTL_SECONDS });
+  const label = encodeURIComponent(`${issuer}:${accountLabel}`);
+  const otpauthUri = `otpauth://totp/${label}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
+  return { status: 'MFA_ENROLLMENT_REQUIRED', enrollmentToken, secret, otpauthUri, accountLabel };
+}
+
+/**
+ * Stores the pending secret once the user enters a current code from it. Refuses when the user
+ * already has TOTP (a second enrolment would let a password alone replace the second factor).
+ */
+export async function completeTotpEnrollment(enrollmentToken: string, code: string, env: Env): Promise<Actor> {
+  const key = await enrollmentKey(enrollmentToken);
+  const raw = enrollmentToken ? await env.SECURITY_KV.get(key) : null;
+  if (!raw) throw new HttpError(400, 'MFA_ENROLLMENT_EXPIRED', 'หมดเวลาลงทะเบียน กรุณาเข้าสู่ระบบใหม่อีกครั้ง');
+  const pending = JSON.parse(raw) as PendingEnrollment;
+  const { userId } = pending.actor;
+  if (await hasTotp(userId, env)) {
+    await env.SECURITY_KV.delete(key);
+    throw new HttpError(409, 'MFA_ALREADY_ENROLLED', 'บัญชีนี้ลงทะเบียนรหัสยืนยันไว้แล้ว กรุณาเข้าสู่ระบบใหม่');
+  }
+  const secret = await decryptText(pending.secretCiphertext, requireSecret(env, 'MFA_ENCRYPTION_KEY_BASE64'), totpContext(userId));
+  const now = Math.floor(Date.now() / 30_000);
+  let matched: number | null = null;
+  for (const counter of [now - 1, now, now + 1]) if (await totpCode(secret, counter) === code) matched = counter;
+  if (matched === null) {
+    pending.attempts += 1;
+    if (pending.attempts >= ENROLLMENT_MAX_ATTEMPTS) await env.SECURITY_KV.delete(key);
+    else await env.SECURITY_KV.put(key, JSON.stringify(pending), { expirationTtl: ENROLLMENT_TTL_SECONDS });
+    throw new Error('MFA_INVALID');
+  }
+  await env.SECURITY_DB.prepare('INSERT INTO user_security (user_id, totp_secret_ciphertext, mfa_enabled, recovery_codes_json, updated_at) VALUES (?, ?, 1, ?, ?)')
+    .bind(userId, pending.secretCiphertext, '[]', new Date().toISOString()).run();
+  await env.SECURITY_KV.put(`totp-last:${userId}`, String(matched), { expirationTtl: 300 });
+  await env.SECURITY_KV.delete(key);
+  return pending.actor;
+}
+
+/** Removes a user's TOTP and ends their sessions; they enrol again at their next sign-in. */
+export async function resetTotp(userId: string, env: Env): Promise<void> {
+  await env.SECURITY_DB.prepare('DELETE FROM user_security WHERE user_id = ?').bind(userId).run();
+  await env.SECURITY_DB.prepare("UPDATE sessions SET revoked_at = ? WHERE revoked_at IS NULL AND json_extract(session_json, '$.actor.userId') = ?")
+    .bind(new Date().toISOString(), userId).run();
+  await env.SECURITY_KV.delete(`totp-last:${userId}`);
 }
 
 const LOGIN_WINDOW_SECONDS = 900;

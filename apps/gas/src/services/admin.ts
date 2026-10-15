@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { villageLabel, assignmentSetSchema, caregiverCreateSchema, caregiverGetSchema, caregiverUpdateSchema, MAX_IMPORT_ROWS_PER_REQUEST, patientImportRowSchema, patientImportSchema, type Actor, type Page } from '@smart-ltc/shared';
-import { getAppMode } from '../config';
+import { getAppMode, isPasswordAuthEnabled } from '../config';
 import { ensureColumns, ensureSheet } from '../initializer';
 import { appendUnique, bulkAppend, getById, getSheet, headersOf, listAll, updateWhere, versionedUpdate, withScriptLock, type RowRecord } from '../repositories/sheets';
 import { requireCapability } from '../security/rbac';
@@ -61,10 +61,10 @@ export function listUsers(actor: Actor): Page<RowRecord> {
   return { items, hasMore: false };
 }
 
-/** A caregiver account that signs in with username and password (DEMO sign-in). */
+/** A caregiver account that signs in with username and password (DEMO, or PILOT without Google). */
 export function createCaregiver(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
   requireCapability(actor, 'users:manage');
-  if (getAppMode() !== 'DEMO') throw new Error('PASSWORD_AUTH_DISABLED');
+  if (!isPasswordAuthEnabled()) throw new Error('PASSWORD_AUTH_DISABLED');
   const input = forwardedCaregiverSchema.parse(payload);
   ensureSheet('CaregiverProfiles');
   const userId = `usr-${Utilities.getUuid()}`;
@@ -215,7 +215,7 @@ const forwardedCaregiverUpdateSchema = caregiverUpdateSchema.omit({ cid: true })
 export function updateCaregiver(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
   requireCapability(actor, 'users:manage');
   const input = forwardedCaregiverUpdateSchema.parse(payload);
-  if (input.newPassword && getAppMode() !== 'DEMO') throw new Error('PASSWORD_AUTH_DISABLED');
+  if (input.newPassword && !isPasswordAuthEnabled()) throw new Error('PASSWORD_AUTH_DISABLED');
   ensureSheet('CaregiverProfiles');
   const now = new Date().toISOString();
   const result = withScriptLock(() => {

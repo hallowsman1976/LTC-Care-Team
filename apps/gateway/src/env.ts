@@ -6,8 +6,10 @@ export interface Env {
   CID_ENCRYPTION_KEY_BASE64: string;
   CID_LOOKUP_SECRET: string;
   MFA_ENCRYPTION_KEY_BASE64: string;
-  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_ID?: string;
   GOOGLE_HOSTED_DOMAIN?: string;
+  /** PILOT without Google Workspace: username/password sign-in with TOTP for every role. */
+  PASSWORD_AUTH_ENABLED?: 'true' | 'false';
   PHI_EXPORT_ENABLED?: 'true' | 'false';
   /** Local development only: honour the x-demo-role header for requests addressed to localhost. */
   DEMO_IMPERSONATION?: 'true' | 'false';
@@ -36,6 +38,21 @@ export function isDemoMode(env: Env): boolean {
   return env.APP_MODE === 'DEMO';
 }
 
+/** DEMO always signs in with a password; PILOT only when PASSWORD_AUTH_ENABLED=true. */
+export function isPasswordAuthEnabled(env: Env): boolean {
+  return isDemoMode(env) || env.PASSWORD_AUTH_ENABLED === 'true';
+}
+
+/** Google sign-in needs a client id, and in PILOT also the Workspace domain it is limited to. */
+export function isGoogleAuthEnabled(env: Env): boolean {
+  return Boolean(env.GOOGLE_CLIENT_ID) && (isDemoMode(env) || Boolean(env.GOOGLE_HOSTED_DOMAIN));
+}
+
+/** With real data every role proves a second factor; the DEMO keeps it to ADMIN and CM. */
+export function requiresTotp(env: Env, role: string): boolean {
+  return !isDemoMode(env) || role === 'ADMIN' || role === 'CM';
+}
+
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 /**
@@ -55,14 +72,16 @@ export function assertOperationalMode(env: Env): void {
   if (gasUrl.protocol !== 'https:' || gasUrl.hostname !== 'script.google.com' || !gasUrl.pathname.endsWith('/exec')) {
     throw new Error('INVALID_CONFIG:GAS_EXEC_URL');
   }
-  if (!env.GOOGLE_HOSTED_DOMAIN || placeholders.includes(env.GOOGLE_HOSTED_DOMAIN)) {
-    throw new Error('INVALID_CONFIG:GOOGLE_HOSTED_DOMAIN');
-  }
   assertSecret('GATEWAY_ASSERTION_SECRET', env.GATEWAY_ASSERTION_SECRET);
   assertSecret('CID_LOOKUP_SECRET', env.CID_LOOKUP_SECRET);
   assertSecret('CID_ENCRYPTION_KEY_BASE64', env.CID_ENCRYPTION_KEY_BASE64, 40);
   assertSecret('MFA_ENCRYPTION_KEY_BASE64', env.MFA_ENCRYPTION_KEY_BASE64, 40);
-  if (!env.GOOGLE_CLIENT_ID || placeholders.some((placeholder) => env.GOOGLE_CLIENT_ID.includes(placeholder))) {
+  if (env.PASSWORD_AUTH_ENABLED === 'true' && !env.GOOGLE_CLIENT_ID) return;
+  // Google sign-in: configured completely and limited to the organisation's Workspace domain.
+  if (!env.GOOGLE_HOSTED_DOMAIN || placeholders.includes(env.GOOGLE_HOSTED_DOMAIN)) {
+    throw new Error('INVALID_CONFIG:GOOGLE_HOSTED_DOMAIN');
+  }
+  if (!env.GOOGLE_CLIENT_ID || placeholders.some((placeholder) => env.GOOGLE_CLIENT_ID?.includes(placeholder))) {
     throw new Error('INVALID_CONFIG:GOOGLE_CLIENT_ID');
   }
 }

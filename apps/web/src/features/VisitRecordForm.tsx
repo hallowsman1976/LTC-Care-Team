@@ -7,7 +7,7 @@ import {
   needsSuicideAssessment, OTHER_CARE_ACTIVITIES, Q2_QUESTIONS, Q8_FOLLOW_UP, Q8_QUESTIONS, Q9_FREQUENCIES, Q9_QUESTIONS, RELATIONS, scoreQ8, sum,
   visitRecordSubmitSchema, type AdlItems, type ImageKind, type VisitContext
 } from '@smart-ltc/shared';
-import { post, postWithProgress, todayInBangkok } from '../lib/api';
+import { isDemoMode, post, postWithProgress, todayInBangkok } from '../lib/api';
 import { compressImage, type PreparedImage } from '../lib/images';
 import { SignaturePad } from '../components/SignaturePad';
 import { Card, ErrorState, Loading } from '../components/ui';
@@ -441,7 +441,7 @@ export function VisitRecordForm() {
       <Section number={7} title="กิจกรรมการดูแลด้านอื่น ๆ" hint="เลือกได้หลายรายการ"><Checklist items={OTHER_CARE_ACTIVITIES} selected={form.otherCare} onChange={(next) => set('otherCare', next)}/></Section>
     </>}
     {step === 5 && <>
-      <Section number={8} title="ภาพประกอบ" hint="ระบบย่อภาพก่อนอัปโหลด ข้อมูล DEMO เท่านั้น ห้ามใช้ภาพบุคคลจริง">
+      <Section number={8} title="ภาพประกอบ" hint={isDemoMode ? 'ระบบย่อภาพก่อนอัปโหลด ข้อมูล DEMO เท่านั้น ห้ามใช้ภาพบุคคลจริง' : 'ระบบย่อภาพก่อนอัปโหลด ถ่ายเฉพาะที่จำเป็นต่อการดูแล และต้องได้รับความยินยอมจากผู้รับบริการหรือญาติ'}>
         <div className="grid gap-3 md:grid-cols-2">
           <div data-field="olderImageId"><ImagePicker label="ภาพผู้สูงอายุ *" slot={images.OLDER} disabled={busy} onPick={(file) => pickImage('OLDER', file)}/><FieldError message={e.olderImageId && 'กรุณาเลือกภาพ'}/></div>
           <div data-field="serviceImageId"><ImagePicker label="ภาพกิจกรรมการดูแล *" slot={images.SERVICE} disabled={busy} onPick={(file) => pickImage('SERVICE', file)}/><FieldError message={e.serviceImageId && 'กรุณาเลือกภาพ'}/></div>

@@ -1,5 +1,20 @@
 # UAT checklist — synthetic data only
 
+## PILOT sign-in (password + TOTP)
+
+- `/api/v1/health` reports `mode: PILOT`; the banner says PILOT and no screen says DEMO.
+- First sign-in of a new CG and a new CM shows the QR; a wrong code is refused, the right one signs in.
+- Second sign-in without the code is refused; a code already used is refused.
+- Five wrong passwords in 15 minutes lock that account for 15 minutes.
+- CM "รีเซ็ตแอปยืนยันตัวตน" on a CG ends the CG's open session at once; the CG enrols again.
+- A disabled CG cannot sign in, and requests from an open session fail.
+- A CM whose `qualificationExpiry` is past cannot sign in.
+- `/auth/google` returns 404.
+- After 30 minutes idle the session ends; after 8 hours it ends regardless.
+- `JobRuns` shows `WORKBOOK_BACKUP` SUCCESS each night; a restore drill per `docs/pilot/BACKUP_DR.md` succeeds.
+- Patient registration and import require a legal basis and record `privacyNoticeVersion`.
+- A visit photo upload is refused for a patient without an active consent.
+
 ## Access control
 
 - Forged, expired and replayed gateway assertions are rejected.

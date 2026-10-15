@@ -33,7 +33,7 @@ const GAS_ERRORS: Record<string, [number, string]> = {
   CLINICAL_CREDENTIAL_INVALID: [403, 'ใบประกอบวิชาชีพหมดอายุหรือยังไม่ได้ตรวจสอบ'],
   VISIT_NOT_ASSIGNED: [403, 'งานเยี่ยมนี้ไม่ได้มอบหมายให้ท่าน'],
   ENCOUNTER_NOT_ASSIGNED: [403, 'บันทึกการเยี่ยมนี้ไม่ใช่ของท่าน'],
-  PASSWORD_AUTH_DISABLED: [403, 'การเข้าสู่ระบบด้วยรหัสผ่านเปิดใช้เฉพาะโหมด DEMO'],
+  PASSWORD_AUTH_DISABLED: [403, 'ระบบนี้ไม่ได้เปิดการเข้าสู่ระบบด้วยรหัสผ่าน'],
   NOT_FOUND: [404, 'ไม่พบรายการที่ร้องขอ'],
   PATIENT_NOT_FOUND: [404, 'ไม่พบผู้รับบริการ'],
   VERSION_CONFLICT: [409, 'ข้อมูลถูกแก้ไขโดยผู้อื่น กรุณาโหลดใหม่'],

@@ -31,6 +31,11 @@ export function previewRespond(path: string, init: RequestInit | undefined, role
     return reply(200, envelope(true, 'OK', '', { demo: true, userId: `usr-${crypto.randomUUID()}`, displayName: input.data.displayName, username: input.data.username }));
   }
 
+  if (path === '/admin/users/mfa-reset' && method === 'POST') {
+    if (!actor.capabilities.includes('users:manage')) return reply(403, envelope(false, 'FORBIDDEN', 'ไม่มีสิทธิ์จัดการผู้ใช้งาน', null));
+    return reply(200, envelope(true, 'OK', '', { demo: true }));
+  }
+
   if ((path === '/admin/caregivers/get' || path === '/admin/caregivers/update') && method === 'POST') {
     if (!actor.capabilities.includes('users:manage')) return reply(403, envelope(false, 'FORBIDDEN', 'ไม่มีสิทธิ์ดำเนินการนี้', null));
     if (path.endsWith('/get')) {

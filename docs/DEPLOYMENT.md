@@ -57,6 +57,10 @@ For Cloudflare **Workers Builds** (deploy on git push), set in the Worker's Sett
 
 ## Real-data pilot
 
+**การติดตั้งปัจจุบัน** (`ltc-care-team.hallowsman.workers.dev`) ถูกแปลงเป็น PILOT แบบรหัสผ่าน + TOTP เพราะหน่วยงานไม่มี Google Workspace ขั้นตอนอยู่ใน `PILOT_CUTOVER.md` ค่าที่ไม่ใช่ความลับอยู่ใน `wrangler.toml` (`APP_MODE`, `APP_ORIGIN`, `PASSWORD_AUTH_ENABLED`, `PHI_EXPORT_ENABLED`) และ `apps/web/.env.production` (`VITE_APP_MODE=PILOT`, ชื่อหน่วยบริการ, เวอร์ชันประกาศความเป็นส่วนตัว) ส่วนกุญแจสร้างด้วย `scripts/pilot/generate-secrets.mjs` งานรายวันที่ต้องติดตั้ง: `installBackupTrigger` และ `installAuditArchiveTrigger`
+
+ส่วนที่เหลือของหัวข้อนี้อธิบายแบบ Google Workspace สำหรับหน่วยงานที่มี
+
 โค้ดรองรับ deployment แบบ `PILOT` แต่ต้องดำเนินการตาม `PILOT_RUNBOOK.md` ก่อนทุกครั้ง ห้ามแก้เฉพาะป้าย DEMO หรือส่ง header `x-demo-role` เพื่อใช้งานจริง เพราะ gateway จะไม่ยอมรับ header นี้เมื่อ `APP_MODE=PILOT`
 
 หลักการตั้งค่า:

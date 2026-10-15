@@ -1,4 +1,4 @@
-import { getAppMode, getRequiredProperty, requireOperationalMode } from './config';
+import { getAppMode, getRequiredProperty, isPasswordAuthEnabled, requireOperationalMode } from './config';
 import { verifyGatewayRequest } from './security/verifyGateway';
 import { resolveActorByUserId } from './security/rbac';
 import { createAdlAssessment } from './services/adl';
@@ -15,7 +15,9 @@ import { runScheduler } from './jobs/schedule';
 import { setDemoCredential as setCredential } from './admin/credentials';
 import { diagnoseDemoLogin as diagnoseLogin } from './admin/diagnose';
 import { seedDemoData as seedDemo } from './admin/demoData';
+import { addApprovedRuleset as addRuleset, createPilotCaseManager as createCaseManager, renewCaseManagerCredential as renewCredential, resetUserPassword as resetPassword, type CaseManagerInput, type RulesetInput } from './admin/pilotSetup';
 import { runLoadProbe as probe, seedLoadTestData as seedLoad, type LoadTestOptions } from './admin/loadTest';
+import { backupWorkbook as backup, installBackupTrigger as installBackup } from './jobs/backup';
 import { archiveAuditLogs as archiveAudit, installAuditArchiveTrigger as installArchiveTrigger } from './jobs/auditArchive';
 import { dashboardSummary, listAlerts, listReviews, listVisits } from './services/operations';
 import { createCaregiver, getCaregiver, importPatients, listAssignments, listCaregivers, listUsers, setAssignment, updateCaregiver } from './services/admin';
@@ -69,7 +71,7 @@ export function doPost(e: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Cont
     if (!raw || raw.length > MAX_REQUEST_CHARS) throw new Error('INVALID_REQUEST');
     const trusted = verifyGatewayRequest(JSON.parse(raw) as unknown);
     verified = true;
-    if (trusted.action === 'auth.passwordVerify' && getAppMode() !== 'DEMO') throw new Error('PASSWORD_AUTH_DISABLED');
+    if (trusted.action === 'auth.passwordVerify' && !isPasswordAuthEnabled()) throw new Error('PASSWORD_AUTH_DISABLED');
     const anonymousHandler = ANONYMOUS_ACTIONS[trusted.action];
     if (anonymousHandler) {
       const data = anonymousHandler(trusted.payload);
@@ -135,4 +137,33 @@ export function diagnoseDemoLogin(identifier: string, password?: string): Return
 
 export function seedDemoData(cgIdentifier?: string): ReturnType<typeof seedDemo> {
   return seedDemo(cgIdentifier);
+}
+
+export function createPilotCaseManager(input: CaseManagerInput): ReturnType<typeof createCaseManager> {
+  requireOperationalMode();
+  return createCaseManager(input);
+}
+
+export function renewCaseManagerCredential(username: string, credentialType: string, qualificationExpiry: string): ReturnType<typeof renewCredential> {
+  requireOperationalMode();
+  return renewCredential(username, credentialType, qualificationExpiry);
+}
+
+export function resetUserPassword(username: string, newPassword: string): ReturnType<typeof resetPassword> {
+  requireOperationalMode();
+  return resetPassword(username, newPassword);
+}
+
+export function addApprovedRuleset(input: RulesetInput): ReturnType<typeof addRuleset> {
+  requireOperationalMode();
+  return addRuleset(input);
+}
+
+export function backupWorkbook(): ReturnType<typeof backup> {
+  requireOperationalMode();
+  return backup();
+}
+
+export function installBackupTrigger(): string {
+  return installBackup();
 }
