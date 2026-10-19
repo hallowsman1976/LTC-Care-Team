@@ -142,6 +142,24 @@ export function versionedUpdate(name: string, idColumn: string, id: string, expe
 }
 
 
+/**
+ * Drops the rows `remove` accepts and appends `records`, in one read and one write. For small
+ * sheets whose rows are saved as a set (a budget plan's lines), where per-row writes are too slow.
+ */
+export function replaceRows(name: string, remove: (row: RowRecord) => boolean, records: RowRecord[]): void {
+  withScriptLock(() => {
+    const sheet = getSheet(name);
+    const values = sheet.getDataRange().getValues();
+    const headers = values[0]?.map(String) ?? [];
+    const kept = values.slice(1).filter((row) => row.some((cell) => cell !== '')
+      && !remove(Object.fromEntries(headers.map((header, index) => [header, row[index]]))));
+    const rows = [...kept.map((row) => headers.map((_, index) => toCell(row[index]))), ...records.map((record) => rowOf(headers, record))];
+    const blanks = Math.max(0, values.length - 1 - rows.length);
+    const all = [...rows, ...Array.from({ length: blanks }, () => headers.map(() => ''))];
+    if (all.length) sheet.getRange(2, 1, all.length, headers.length).setValues(all);
+  });
+}
+
 /** Applies `changes` to every row matching `predicate`; returns how many rows changed. */
 export function updateWhere(name: string, predicate: (row: RowRecord) => boolean, changes: RowRecord): number {
   return withScriptLock(() => {

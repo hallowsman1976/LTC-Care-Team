@@ -4,6 +4,10 @@ import {
   encounterReviewSchema, fileUploadSchema, visitSubmitSchema
 } from './actions';
 import { assignmentSetSchema, type CaregiverDetail } from './admin';
+import {
+  budgetApproveSchema, budgetCreateSchema, budgetGetSchema, budgetReviseSchema, budgetSaveSchema, budgetSyncSchema,
+  DEFAULT_BUDGET_SETTINGS, type BudgetGroup, type BudgetPlanDetail
+} from './budget';
 import { capabilitiesFor } from './rbac';
 import { visitContextSchema, visitImageUploadSchema, visitRecordSubmitSchema } from './visitRecord';
 import type { Actor, Capability, Page } from './types';
@@ -56,6 +60,25 @@ export function demoPatientDetail(patientId: string): Record<string, unknown> {
   };
 }
 
+/** The budget pages' synthetic plan: one line per demo patient, plus one not yet classified. */
+export function demoBudgetPlan(): BudgetPlanDetail {
+  const line = (patient: typeof demoPatients[number], index: number) => ({
+    lineId: `bl-demo-00${index + 1}`, patientId: patient.patientId, fullName: patient.fullName, age: patient.age, address: `${patient.village} (ข้อมูลสมมติ)`,
+    adlScore: [8, 11, 15][index] ?? null, groupNumber: patient.groupNumber as BudgetGroup, serviceFrom: '2025-10-01', serviceTo: '2026-09-30', serviceDays: 365, serviceMonths: 12,
+    caregiverName: index === 0 ? 'CG ตัวอย่าง' : '', caregiverChanged: false, diapersPerDay: index === 0 ? 1 : 0, diaperCount: null, otherSupplies: index === 0 ? 1500 : 500,
+    assessFee: null, reassessFee: null, teamFee: null, cgMonthly: null, excluded: false, excludeReason: '', note: '', currentGroup: patient.groupNumber as BudgetGroup
+  });
+  return {
+    planId: 'bp-demo-2569', fiscalYear: 2569, version: 1, status: 'DRAFT', approvedAt: '', approvedByName: '', updatedAt: '2026-10-15T09:00:00.000Z', lineCount: 4,
+    settings: { ...DEFAULT_BUDGET_SETTINGS, fundName: 'กองทุนหลักประกันสุขภาพตำบลตัวอย่าง', unitName: 'รพ.สต. ตัวอย่าง', assessFee: 300, reassessFee: 200, teamFee: 300, cgMonthly: 150 },
+    approvalNote: '', revisionReason: '', syncedAt: '2026-10-15T09:00:00.000Z', recordVersion: 1,
+    lines: [...demoPatients.map(line), {
+      ...line(demoPatients[2]!, 3), patientId: 'pt-demo-004', fullName: 'นางรอประเมิน สี่', adlScore: null, groupNumber: null, currentGroup: null,
+      serviceFrom: '2026-04-01', serviceDays: 183, serviceMonths: 6, otherSupplies: 0
+    }]
+  };
+}
+
 export interface ReadRoute {
   action: string;
   capability?: Capability;
@@ -89,6 +112,13 @@ export const READ_ROUTES: Record<string, ReadRoute> = {
       patientId: patient.patientId, localCode: patient.localCode, hn: patient.hn, fullName: patient.fullName, village: patient.village,
       hasActiveEpisode: true, caregiverUserId: index === 0 ? 'usr-demo-cg' : '', caregiverName: index === 0 ? 'CG ตัวอย่าง' : ''
     })))
+  },
+  '/budget-plans': {
+    action: 'budget.list', capability: 'budget:read',
+    demo: () => {
+      const { settings: _settings, lines: _lines, approvalNote: _note, revisionReason: _reason, syncedAt: _synced, recordVersion: _version, ...summary } = demoBudgetPlan();
+      return page([summary]);
+    }
   },
   '/reviews': {
     action: 'review.list', capability: 'encounter:review',
@@ -153,6 +183,28 @@ export const WRITE_ROUTES: Record<string, WriteRoute> = {
   '/admin/assignments': {
     action: 'assignment.set', capability: 'assignments:manage', schema: assignmentSetSchema,
     demo: (input) => ({ patientId: input.patientId, caregiverUserId: input.caregiverUserId, status: 'ASSIGNED', reassignedVisits: 0 })
+  },
+  '/budget-plans/create': {
+    action: 'budget.create', capability: 'budget:manage', schema: budgetCreateSchema,
+    demo: () => ({ planId: demoBudgetPlan().planId })
+  },
+  // A read with a parameter, so it is a POST; it changes nothing.
+  '/budget-plans/get': { action: 'budget.get', capability: 'budget:read', schema: budgetGetSchema, demo: () => ({ ...demoBudgetPlan() }) },
+  '/budget-plans/sync': {
+    action: 'budget.sync', capability: 'budget:manage', schema: budgetSyncSchema,
+    demo: (input) => ({ planId: input.planId, recordVersion: Number(input.recordVersion) + 1, added: 0, updated: 4 })
+  },
+  '/budget-plans/save': {
+    action: 'budget.save', capability: 'budget:manage', schema: budgetSaveSchema,
+    demo: (input) => ({ planId: input.planId, recordVersion: Number(input.recordVersion) + 1 })
+  },
+  '/budget-plans/approve': {
+    action: 'budget.approve', capability: 'budget:manage', schema: budgetApproveSchema,
+    demo: (input) => ({ planId: input.planId, status: 'APPROVED' })
+  },
+  '/budget-plans/revise': {
+    action: 'budget.revise', capability: 'budget:manage', schema: budgetReviseSchema,
+    demo: () => ({ planId: 'bp-demo-2569-v2', version: 2, status: 'DRAFT' })
   },
   '/visit-records': {
     action: 'visitRecord.submit', capability: 'patients:read', schema: visitRecordSubmitSchema,

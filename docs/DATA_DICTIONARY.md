@@ -18,6 +18,10 @@ Key rules:
 Primary tables: Users, AuthCredentials, StaffProfiles, Patients, PatientContacts, CareEpisodes, ADLAssessments, LTCClassifications, RiskAssessments, CarePlans, CarePlanProblems, CarePlanInterventions, StaffAssignments, VisitSchedules, VisitEncounters, VisitActivities, VisitFiles, Alerts, Referrals, ServiceRuleSets, ServiceFrequencyRules, PatientConsents, NotificationOutbox, AuditLogs, SyncReceipts, JobRuns, IndexRegistry and Holidays.
 
 
+## LTC budget plans
+
+`BudgetPlans` holds one row per fiscal year (พ.ศ., 1 Oct – 30 Sep) and version; `status` is `DRAFT`, `APPROVED` or `SUPERSEDED`, and the rates, defaults and the fund's approved amount are in `settingsJson` (`budgetSettingsSchema`), so an approved version keeps the rates it was approved with. `BudgetLines` holds one row per person: fields pulled from the register (name, age, address, ADL, confirmed `groupNumber`, `serviceDays`/`serviceMonths` in the year, current caregiver) and the CM's figures. A blank fee or `diaperCount` means "use the plan's default". Both sheets are created on first use and stored as text. The calculation lives in `packages/shared/src/budget.ts`: a month counts once 15 of its days were in care; the group rate is pro-rated by months and rounded to whole baht; the ceiling is the sum of counted people's pro-rated rates, or the approved amount when set.
+
 ## Patients registration fields
 
 New columns are appended to an existing `Patients` sheet on the next registration (`ensureColumns`); existing columns never move, because rows are read by header name. Choice fields store the codes in `packages/shared/src/patient.ts`.

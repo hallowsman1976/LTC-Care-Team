@@ -36,11 +36,14 @@ export const SHEETS: Record<string, string[]> = {
   Holidays: ['holidayId', 'localDate', 'name', 'active'],
   VisitImages: VISIT_IMAGE_COLUMNS,
   Visit_Records: VISIT_RECORD_COLUMNS,
-  CaregiverProfiles: ['userId', 'cidCiphertext', 'cidLookupHash', 'birthDate', 'phone', 'address', 'email', 'photoFileId', 'photoUrl', 'education', 'organizationName', 'organizationType', 'serviceArea', 'trainingsJson', 'createdAt', 'updatedAt', 'createdBy', 'recordVersion']
+  CaregiverProfiles: ['userId', 'cidCiphertext', 'cidLookupHash', 'birthDate', 'phone', 'address', 'email', 'photoFileId', 'photoUrl', 'education', 'organizationName', 'organizationType', 'serviceArea', 'trainingsJson', 'createdAt', 'updatedAt', 'createdBy', 'recordVersion'],
+  BudgetPlans: ['planId', 'fiscalYear', 'version', 'status', 'settingsJson', 'approvedBy', 'approvedAt', 'approvalNote', 'revisionReason', 'syncedAt', 'createdAt', 'updatedAt', 'createdBy', 'recordVersion'],
+  BudgetLines: ['lineId', 'planId', 'patientId', 'fullName', 'age', 'address', 'adlScore', 'groupNumber', 'serviceFrom', 'serviceTo', 'serviceDays', 'serviceMonths',
+    'caregiverName', 'caregiverChanged', 'diapersPerDay', 'diaperCount', 'otherSupplies', 'assessFee', 'reassessFee', 'teamFee', 'cgMonthly', 'excluded', 'excludeReason', 'note']
 };
 
 /** Sheets that store typed-in text such as phone numbers and times: keep them as text (leading 0s). */
-const TEXT_SHEETS = ['VisitImages', 'Visit_Records', 'CaregiverProfiles'];
+const TEXT_SHEETS = ['VisitImages', 'Visit_Records', 'CaregiverProfiles', 'BudgetPlans', 'BudgetLines'];
 
 /** Adds a sheet introduced after the workbook was initialized, so a deploy needs no manual step. */
 export function ensureSheet(name: string): void {

@@ -8,3 +8,4 @@ export * from './routes';
 export * from './visitRecord';
 export * from './admin';
 export * from './patient';
+export * from './budget';

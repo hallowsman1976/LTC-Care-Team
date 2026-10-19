@@ -1,4 +1,4 @@
-import { Bell, CalendarDays, ChevronDown, ClipboardCheck, ClipboardList, FileUp, Home, IdCard, LogOut, Menu, Settings, UserCheck, UserPlus, Users, X, type LucideIcon } from 'lucide-react';
+import { Bell, CalendarDays, ChevronDown, ClipboardCheck, ClipboardList, FileUp, Home, IdCard, LogOut, Menu, Settings, UserCheck, UserPlus, Users, Wallet, X, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import type { Actor, Capability, Role } from '@smart-ltc/shared';
@@ -13,7 +13,8 @@ const mainNav: NavItem[] = [
   { to: '/visits', label: 'งานเยี่ยม', icon: ClipboardList, capability: 'patients:read' },
   { to: '/reviews', label: 'ตรวจทาน', icon: ClipboardCheck, capability: 'encounter:review' },
   { to: '/calendar', label: 'ปฏิทิน', icon: CalendarDays, capability: 'patients:read' },
-  { to: '/alerts', label: 'การแจ้งเตือน', icon: Bell, capability: 'patients:read' }
+  { to: '/alerts', label: 'การแจ้งเตือน', icon: Bell, capability: 'patients:read' },
+  { to: '/budget', label: 'งบประมาณ LTC', icon: Wallet, capability: 'budget:read' }
 ];
 
 export const settingsNav: NavItem[] = [

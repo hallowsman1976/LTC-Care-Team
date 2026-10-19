@@ -37,6 +37,13 @@ External API อยู่ใต้ `/api/v1`. ทุก response JSON ใช้ 
 | GET | `/admin/assignments` | `assignments:manage` | Every active patient with the current CG |
 | POST | `/admin/assignments` | `assignments:manage` | `assignmentSetSchema`; ends the previous CG assignment, moves upcoming visits, opens an episode if none |
 | POST | `/admin/patients/import` | `patients:import` | `patientImportSchema`, ≤ 200 rows, all registration columns; CIDs encrypted at Worker; duplicates skipped and reported; `caregiverUsername` assigns the CG (needs `assignments:manage`), unknown names are imported unassigned and returned in `warnings` |
+| GET | `/budget-plans` | `budget:read` (CM, ADMIN) | Budget plans of every fiscal year and version |
+| POST | `/budget-plans/get` | `budget:read` | `budgetGetSchema`; settings, lines and each line's current confirmed group |
+| POST | `/budget-plans/create` | `budget:manage` (CM) | `budgetCreateSchema`; one plan per fiscal year (`BUDGET_PLAN_EXISTS`); copies last year's settings; pulls everyone in care during the year |
+| POST | `/budget-plans/sync` | `budget:manage` | `budgetSyncSchema`; DRAFT only; refreshes group, months in care and CG, keeps the CM's figures, adds new people |
+| POST | `/budget-plans/save` | `budget:manage` | `budgetSaveSchema`; DRAFT only (`BUDGET_PLAN_LOCKED`); version-checked; settings plus the edited lines |
+| POST | `/budget-plans/approve` | `budget:manage` | `budgetApproveSchema`; refused over the ceiling (`BUDGET_OVER_CEILING`) or with no counted person; supersedes the previous approved version |
+| POST | `/budget-plans/revise` | `budget:manage` | `budgetReviseSchema`; copies an APPROVED plan to a new DRAFT version (`BUDGET_DRAFT_EXISTS` if one is open) |
 | POST | `/exports/patients.csv` | CM + `export:phi` | Auth within 5 minutes (sign in again) and `x-export-reason` required |
 
 Request schemas live in `packages/shared/src/actions.ts`. The gateway validates them and forwards only the parsed fields; GAS validates again. There is no generic proxy to GAS actions, and `auth.*` actions are reachable only through the sign-in routes.

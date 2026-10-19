@@ -10,7 +10,9 @@ export type Capability =
   | 'classification:confirm'
   | 'carePlan:approve'
   | 'encounter:review'
-  | 'export:phi';
+  | 'export:phi'
+  | 'budget:read'
+  | 'budget:manage';
 
 export interface Actor {
   userId: string;

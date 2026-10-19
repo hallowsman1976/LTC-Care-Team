@@ -14,6 +14,8 @@ import { CaregiverEdit, Caregivers } from '../features/Caregivers';
 import { VisitRecordForm } from '../features/VisitRecordForm';
 import { AdlForm, CarePlanForm, ClassificationForm } from '../features/ClinicalForms';
 import { PatientEdit, PatientForm } from '../features/PatientForm';
+import { BudgetPlanPage, BudgetPlans } from '../features/Budget';
+import { BudgetPrint } from '../features/BudgetPrint';
 
 function UnsupportedBrowser() {
   return <main className="mx-auto max-w-lg p-6"><div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-6"><h1 className="text-xl font-bold text-red-900">เบราว์เซอร์ไม่รองรับ</h1><p className="mt-2 text-red-800">กรุณาอัปเดต Chrome/Edge 109+, Firefox 115 ESR+ หรือ Safari/iOS 16.4+ ระบบจะไม่โหลดข้อมูลผู้รับบริการบนเบราว์เซอร์นี้</p></div></main>;
@@ -28,7 +30,9 @@ export function App() {
   if (me.error instanceof ApiError && me.error.code === 'UNAUTHENTICATED') return <Login />;
   if (me.error) return <main className="p-6"><ErrorState message={me.error.message}/></main>;
   const actor = me.data;
-  return <Routes><Route element={<Layout actor={actor}/>}>
+  return <Routes>
+    <Route path="budget/:planId/print" element={actor.capabilities.includes('budget:read') ? <BudgetPrint/> : <Navigate to="/" replace/>}/>
+    <Route element={<Layout actor={actor}/>}>
     <Route index element={<Dashboard actor={actor}/>}/>
     <Route path="patients" element={<Patients actor={actor}/>}/>
     <Route path="visits" element={<Visits actor={actor}/>}/><Route path="calendar" element={<Calendar/>}/>
@@ -44,6 +48,8 @@ export function App() {
     <Route path="settings/caregivers" element={<Caregivers/>}/>
     <Route path="settings/caregivers/:userId" element={<CaregiverEdit/>}/>
     <Route path="settings/users" element={<UserDirectory actor={actor}/>}/>
+    <Route path="budget" element={<BudgetPlans actor={actor}/>}/>
+    <Route path="budget/:planId" element={<BudgetPlanPage actor={actor}/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/>
   </Route></Routes>;
 }

@@ -22,6 +22,7 @@ import { archiveAuditLogs as archiveAudit, installAuditArchiveTrigger as install
 import { dashboardSummary, listAlerts, listReviews, listVisits } from './services/operations';
 import { createCaregiver, getCaregiver, importPatients, listAssignments, listCaregivers, listUsers, setAssignment, updateCaregiver } from './services/admin';
 import { submitVisitRecord, uploadVisitImage, visitContext } from './services/visitRecords';
+import { approveBudgetPlan, createBudgetPlan, getBudgetPlan, listBudgetPlans, reviseBudgetPlan, saveBudgetPlan, syncBudgetPlan } from './services/budget';
 
 // A 5 MB upload is ~6.7 MB as base64, plus the envelope.
 const MAX_REQUEST_CHARS = 7_500_000;
@@ -54,7 +55,14 @@ const ACTIONS: Record<string, Handler> = {
   'caregiver.update': updateCaregiver,
   'assignment.list': listAssignments,
   'assignment.set': setAssignment,
-  'patient.import': importPatients
+  'patient.import': importPatients,
+  'budget.list': listBudgetPlans,
+  'budget.get': getBudgetPlan,
+  'budget.create': createBudgetPlan,
+  'budget.sync': syncBudgetPlan,
+  'budget.save': saveBudgetPlan,
+  'budget.approve': approveBudgetPlan,
+  'budget.revise': reviseBudgetPlan
 };
 
 const ANONYMOUS_ACTIONS: Record<string, (payload: Record<string, unknown>) => unknown> = {

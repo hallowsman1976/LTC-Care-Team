@@ -2,9 +2,9 @@ import type { Capability, Role } from './types';
 
 // Single source of truth for role capabilities. Gateway, GAS and the demo actors all read from here.
 export const ROLE_CAPABILITIES: Readonly<Record<Role, readonly Capability[]>> = {
-  ADMIN: ['users:manage', 'assignments:manage', 'patients:import', 'export:phi'],
+  ADMIN: ['users:manage', 'assignments:manage', 'patients:import', 'export:phi', 'budget:read'],
   CM: ['patients:read', 'patients:write', 'adl:approve', 'classification:confirm', 'carePlan:approve', 'encounter:review', 'export:phi',
-    'users:manage', 'assignments:manage', 'patients:import'],
+    'users:manage', 'assignments:manage', 'patients:import', 'budget:read', 'budget:manage'],
   CG: ['patients:read']
 };
 

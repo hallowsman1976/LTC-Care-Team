@@ -54,7 +54,15 @@ const GAS_ERRORS: Record<string, [number, string]> = {
   ACTIVE_ASSIGNMENT_REQUIRED: [409, 'ต้องมอบหมายผู้ดูแลก่อน'],
   ACTIVE_CONSENT_REQUIRED: [409, 'ต้องมีความยินยอมที่ยังมีผล'],
   ENCOUNTER_NOT_REVIEWABLE: [409, 'รายการนี้ไม่อยู่ในสถานะรอตรวจ'],
-  PARTIAL_COMMIT_REQUIRES_RECONCILIATION: [409, 'การส่งครั้งก่อนบันทึกไม่ครบ กรุณาแจ้งผู้ดูแลระบบ']
+  PARTIAL_COMMIT_REQUIRES_RECONCILIATION: [409, 'การส่งครั้งก่อนบันทึกไม่ครบ กรุณาแจ้งผู้ดูแลระบบ'],
+  BUDGET_PLAN_NOT_FOUND: [404, 'ไม่พบแผนงบประมาณ'],
+  BUDGET_LINE_NOT_FOUND: [409, 'รายชื่อในแผนเปลี่ยนไปแล้ว กรุณาโหลดใหม่'],
+  BUDGET_PLAN_EXISTS: [409, 'ปีงบประมาณนี้มีแผนอยู่แล้ว'],
+  BUDGET_PLAN_LOCKED: [409, 'แผนนี้อนุมัติแล้ว แก้ไขไม่ได้ ให้สร้างฉบับปรับปรุงแทน'],
+  BUDGET_PLAN_EMPTY: [409, 'ยังไม่มีผู้ป่วยที่จัดกลุ่มแล้วในแผน'],
+  BUDGET_OVER_CEILING: [409, 'ค่าใช้จ่ายรวมเกินวงเงิน กรุณาปรับยอดก่อนอนุมัติ'],
+  BUDGET_PLAN_NOT_APPROVED: [409, 'ปรับปรุงได้เฉพาะแผนที่อนุมัติแล้ว'],
+  BUDGET_DRAFT_EXISTS: [409, 'ปีงบประมาณนี้มีฉบับร่างอยู่แล้ว']
 };
 
 export function errorResponse(error: unknown): Response {
