@@ -16,6 +16,7 @@ await build({
       'function initializePilotWorkbook() { return SmartLtc.initializePilotWorkbook(); }',
       'function setDemoCredential(userId, identifier, password) { return SmartLtc.setDemoCredential(userId, identifier, password); }',
       'function diagnoseDemoLogin(identifier, password) { return SmartLtc.diagnoseDemoLogin(identifier, password); }',
+      'function diagnoseLogin(identifier, password) { return SmartLtc.diagnoseDemoLogin(identifier, password); }',
       'function seedDemoData(cgIdentifier) { return SmartLtc.seedDemoData(cgIdentifier); }',
       'function createPilotCaseManager(input) { return SmartLtc.createPilotCaseManager(input); }',
       'function renewCaseManagerCredential(username, credentialType, qualificationExpiry) { return SmartLtc.renewCaseManagerCredential(username, credentialType, qualificationExpiry); }',

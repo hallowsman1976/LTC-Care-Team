@@ -1,23 +1,23 @@
-import { getAppMode } from '../config';
+import { isPasswordAuthEnabled } from '../config';
 import { listAll, listPage } from '../repositories/sheets';
 import { derivePasswordHash } from '../security/password';
 import { constantTimeEqual } from '../utils/encoding';
 
 type Verdict =
   | 'OK' | 'PASSWORD_PEPPER_MISSING' | 'NO_ACTIVE_CREDENTIAL' | 'STORED_HASH_CORRUPTED' | 'USER_ROW_NOT_FOUND'
-  | 'USER_NOT_ENABLED' | 'UNKNOWN_ROLE' | 'CM_CLINICAL_CREDENTIAL_INVALID' | 'PASSWORD_MISMATCH';
+  | 'USER_NOT_ENABLED' | 'UNKNOWN_ROLE' | 'CM_CLINICAL_CREDENTIAL_INVALID' | 'PASSWORD_TOO_SHORT' | 'PASSWORD_MISMATCH';
 
 interface Check { step: string; ok: boolean; detail: string }
 
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
 /**
- * Run from the Apps Script editor when a DEMO sign-in fails with "invalid credentials": it walks
+ * Run from the Apps Script editor when a password sign-in (DEMO, or PILOT with PASSWORD_AUTH_ENABLED) fails with "invalid credentials": it walks
  * the same steps as auth.passwordVerify and names the first one that fails. It never returns the
  * salt, hash, pepper or password. Pass the password only from a temporary editor file.
  */
 export function diagnoseDemoLogin(identifier: string, password?: string): { identifier: string; verdict: Verdict; checks: Check[] } {
-  if (getAppMode() !== 'DEMO') throw new Error('DEMO_MODE_REQUIRED');
+  if (!isPasswordAuthEnabled()) throw new Error('PASSWORD_AUTH_DISABLED');
   const normalized = String(identifier ?? '').trim().toLowerCase();
   const checks: Check[] = [];
   const done = (verdict: Verdict) => {
@@ -39,7 +39,7 @@ export function diagnoseDemoLogin(identifier: string, password?: string): { iden
   if (!credential) return done('NO_ACTIVE_CREDENTIAL');
 
   const intact = BASE64.test(String(credential.saltBase64)) && BASE64.test(String(credential.derivedHashBase64)) && Number(credential.iterations) > 0;
-  checks.push({ step: 'saltBase64, derivedHashBase64 and iterations are intact (not turned into formulas)', ok: intact, detail: intact ? '' : 'Run setDemoCredential again for this user.' });
+  checks.push({ step: 'saltBase64, derivedHashBase64 and iterations are intact (not turned into formulas)', ok: intact, detail: intact ? '' : 'Set the password again (setDemoCredential in DEMO, resetUserPassword in PILOT).' });
   if (!intact) return done('STORED_HASH_CORRUPTED');
 
   const userId = String(credential.userId);
@@ -68,6 +68,9 @@ export function diagnoseDemoLogin(identifier: string, password?: string): { iden
     checks.push({ step: 'Password matches', ok: true, detail: 'not checked (no password given)' });
     return done('OK');
   }
+  const longEnough = password.length >= 12 && password.length <= 200;
+  checks.push({ step: 'Password is 12 to 200 characters', ok: longEnough, detail: `length: ${password.length}` });
+  if (!longEnough) return done('PASSWORD_TOO_SHORT');
   const matches = constantTimeEqual(derivePasswordHash(password, String(credential.saltBase64), pepper, Number(credential.iterations)), String(credential.derivedHashBase64));
   checks.push({ step: 'Password matches', ok: matches, detail: matches ? '' : 'Wrong password, or PASSWORD_PEPPER changed after the password was set.' });
   return done(matches ? 'OK' : 'PASSWORD_MISMATCH');

@@ -79,8 +79,17 @@ describe('diagnoseDemoLogin', () => {
     expect(failed('cm.demo')).toBe('STORED_HASH_CORRUPTED');
   });
 
-  it('refuses outside DEMO', () => {
-    installFakeGas({ APP_MODE: 'PILOT', GATEWAY_ASSERTION_SECRET: 'p'.repeat(32) });
-    expect(() => diagnoseDemoLogin('cg.demo')).toThrow('DEMO_MODE_REQUIRED');
+  it('flags a password the sign-in would reject for its length', () => {
+    setDemoCredential('usr-cg', 'cg.demo', 'correct horse battery');
+    expect(failed('cg.demo', 'short')).toBe('PASSWORD_TOO_SHORT');
+  });
+
+  it('runs in a password PILOT and refuses when password sign-in is off', () => {
+    setDemoCredential('usr-cg', 'cg.demo', 'correct horse battery');
+    fakeGas.properties.APP_MODE = 'PILOT';
+    fakeGas.properties.PASSWORD_AUTH_ENABLED = 'true';
+    expect(failed('cg.demo', 'correct horse battery')).toBe('OK');
+    fakeGas.properties.PASSWORD_AUTH_ENABLED = 'false';
+    expect(() => diagnoseDemoLogin('cg.demo')).toThrow('PASSWORD_AUTH_DISABLED');
   });
 });
