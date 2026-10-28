@@ -4,7 +4,7 @@ import { resolveActorByUserId } from './security/rbac';
 import { createAdlAssessment } from './services/adl';
 import { confirmClassification } from './services/ltc';
 import { submitVisit } from './services/visits';
-import { createPatient, exportPatients, getPatient, listPatients, updatePatient } from './services/patients';
+import { createPatient, deletePatient, exportPatients, getPatient, listPatients, updatePatient } from './services/patients';
 import { createCarePlan, activateCarePlan } from './services/carePlans';
 import { reviewEncounter } from './services/reviews';
 import { uploadQuarantinedFile } from './services/files';
@@ -32,6 +32,7 @@ const ACTIONS: Record<string, Handler> = {
   'patient.create': createPatient,
   'patient.get': getPatient,
   'patient.update': updatePatient,
+  'patient.delete': deletePatient,
   'patient.list': listPatients,
   'patient.export': exportPatients,
   'dashboard.summary': dashboardSummary,

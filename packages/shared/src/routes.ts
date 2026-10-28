@@ -9,6 +9,7 @@ import {
   DEFAULT_BUDGET_SETTINGS, type BudgetGroup, type BudgetPlanDetail
 } from './budget';
 import { capabilitiesFor } from './rbac';
+import { patientGetSchema } from './schemas';
 import { visitContextSchema, visitImageUploadSchema, visitRecordSubmitSchema } from './visitRecord';
 import type { Actor, Capability, Page } from './types';
 
@@ -179,6 +180,10 @@ export const WRITE_ROUTES: Record<string, WriteRoute> = {
   '/visit-images': {
     action: 'visitImage.upload', capability: 'patients:read', schema: visitImageUploadSchema,
     demo: () => ({ imageId: uuid(), url: '' })
+  },
+  '/patients/delete': {
+    action: 'patient.delete', capability: 'patients:delete', schema: patientGetSchema,
+    demo: (input) => ({ patientId: input.patientId, deleted: true })
   },
   '/admin/assignments': {
     action: 'assignment.set', capability: 'assignments:manage', schema: assignmentSetSchema,

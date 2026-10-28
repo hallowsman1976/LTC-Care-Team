@@ -22,6 +22,7 @@ External API อยู่ใต้ `/api/v1`. ทุก response JSON ใช้ 
 | POST | `/patients` | `patients:write` (CM, ADMIN) | CID transformed at Worker before GAS; an ADMIN must name `careManagerId` (`CARE_MANAGER_REQUIRED`) |
 | POST | `/patients/get` | `patients:write` (CM, ADMIN) | `patientGetSchema`; CID decrypted at Worker and returned as `cidLast4` only |
 | POST | `/patients/update` | `patients:write` (CM, ADMIN) | `patientUpdateSchema`; version-checked; empty `cid` keeps the stored one; leaving ACTIVE closes the episode, ends assignments and cancels upcoming visits; changing `caregiverId` needs `assignments:manage` |
+| POST | `/patients/delete` | `patients:delete` (ADMIN) | `patientGetSchema`; for a patient registered by mistake: removes the patient with its episodes, assignments, upcoming visits, consents and contacts; refused with `PATIENT_HAS_HISTORY` (409) once any ADL, classification, care plan, visit record, alert, referral or budget line exists |
 | POST | `/adl-assessments` | `adl:approve` | `adlCreateSchema`; episode resolved from `patientId` |
 | POST | `/ltc-classifications` | `classification:confirm` | `classificationConfirmSchema`; uses latest approved ADL |
 | POST | `/care-plans` | `carePlan:approve` | `carePlanCreateSchema`; creates plan + intervention |

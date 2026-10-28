@@ -68,6 +68,30 @@ describe('patient registration', () => {
     expect(post('patient.get', 'usr-cg', { patientId })).toMatchObject({ ok: false });
   });
 
+  it('lets only an ADMIN delete a patient registered by mistake, with what registration created', () => {
+    seed('Users', [{ userId: 'usr-admin', role: 'ADMIN', enabled: 'true', displayName: 'ผู้ดูแลระบบ' }]);
+    post('patient.create', 'usr-cm', patient({ caregiverId: 'usr-cg' }));
+    post('patient.create', 'usr-cm', patient({ hn: 'HN-200', cidLookupHash: 'hash-2', fullName: 'นางอีกคน ทดสอบ' }));
+    const [mistake, kept] = records('Patients').map((row) => String(row.patientId));
+    expect(post('patient.delete', 'usr-cm', { patientId: mistake })).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+    expect(post('patient.delete', 'usr-admin', { patientId: mistake })).toMatchObject({ ok: true, data: { patientId: mistake, deleted: true } });
+    expect(records('Patients').map((row) => row.patientId)).toEqual([kept]);
+    expect(records('CareEpisodes').map((row) => row.patientId)).toEqual([kept]);
+    expect(records('StaffAssignments')).toHaveLength(0);
+    expect(records('PatientConsents').map((row) => row.patientId)).toEqual([kept]);
+    expect(records('AuditLogs').at(-1)).toMatchObject({ action: 'patient.delete', entityId: mistake });
+    expect(post('patient.delete', 'usr-admin', { patientId: mistake })).toMatchObject({ ok: false, code: 'PATIENT_NOT_FOUND' });
+  });
+
+  it('refuses to delete a patient with care history', () => {
+    seed('Users', [{ userId: 'usr-admin', role: 'ADMIN', enabled: 'true', displayName: 'ผู้ดูแลระบบ' }]);
+    post('patient.create', 'usr-cm', patient());
+    const patientId = String(records('Patients')[0]!.patientId);
+    seed('ADLAssessments', [{ assessmentId: 'adl-1', episodeId: records('CareEpisodes')[0]!.episodeId, totalScore: 8 }]);
+    expect(post('patient.delete', 'usr-admin', { patientId })).toMatchObject({ ok: false, code: 'PATIENT_HAS_HISTORY' });
+    expect(records('Patients')).toHaveLength(1);
+  });
+
   it('adds the new columns to a Patients sheet created before they existed', () => {
     const old = ['patientId', 'localCode', 'hn', 'cidCiphertext', 'cidLookupHash', 'fullName', 'birthDate', 'sex', 'address', 'village', 'phone', 'status', 'createdAt', 'updatedAt', 'createdBy', 'recordVersion'];
     fakeGas.sheets.set('Patients', new FakeSheet('Patients', [old, ['pt-old', 'L-1', 'HN-OLD', '', '', 'คนเดิม', '1940-01-01', 'MALE', 'บ้าน', 'หมู่ 1', '', 'ACTIVE', '', '', '', 1]]));

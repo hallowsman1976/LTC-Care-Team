@@ -6,6 +6,7 @@ export type Capability =
   | 'patients:import'
   | 'patients:read'
   | 'patients:write'
+  | 'patients:delete'
   | 'adl:approve'
   | 'classification:confirm'
   | 'carePlan:approve'

@@ -13,7 +13,7 @@ const json = (value: unknown) => JSON.stringify(value);
 
 const cmActor = { userId: 'usr-cm', role: 'CM', capabilities: ['patients:read', 'patients:write', 'adl:approve', 'classification:confirm', 'carePlan:approve', 'encounter:review', 'export:phi', 'users:manage', 'assignments:manage', 'patients:import'] };
 const cgActor = { userId: 'usr-cg', role: 'CG', capabilities: ['patients:read'] };
-const adminActor = { userId: 'usr-admin', role: 'ADMIN', capabilities: ['patients:read', 'patients:write', 'users:manage', 'assignments:manage', 'patients:import', 'export:phi'] };
+const adminActor = { userId: 'usr-admin', role: 'ADMIN', capabilities: ['patients:read', 'patients:write', 'patients:delete', 'users:manage', 'assignments:manage', 'patients:import', 'export:phi'] };
 
 async function loginAs(env: ReturnType<typeof makeEnv>, actor: typeof cmActor | typeof cgActor | typeof adminActor): Promise<string> {
   const secret = 'JBSWY3DPEHPK3PXP';
@@ -173,6 +173,18 @@ describe('gas proxy surface', () => {
     const loaded = await call(request('/patients/get', { method: 'POST', headers: { cookie: `__Host-ltc_session=${cookie}` }, body: json({ patientId: 'pt-1' }) }), env);
     expect(loaded.status).toBe(200);
     expect(calls.map((gasCall) => gasCall.action)).toEqual(['patient.create', 'patient.get']);
+  });
+
+  it('lets only an ADMIN delete a patient', async () => {
+    const env = makeEnv();
+    const cmCookie = await loginAs(env, cmActor);
+    const denied = await call(request('/patients/delete', { method: 'POST', headers: { cookie: `__Host-ltc_session=${cmCookie}` }, body: json({ patientId: 'pt-1' }) }), env);
+    expect(denied.status).toBe(403);
+    const cookie = await loginAs(env, adminActor);
+    const calls = stubGas(() => { throw new Error('PATIENT_HAS_HISTORY'); });
+    const refused = await call(request('/patients/delete', { method: 'POST', headers: { cookie: `__Host-ltc_session=${cookie}` }, body: json({ patientId: 'pt-1' }) }), env);
+    expect(refused.status).toBe(409);
+    expect(calls[0]).toMatchObject({ action: 'patient.delete', payload: { patientId: 'pt-1' } });
   });
 
   it('maps GAS failures to meaningful statuses without leaking internal codes', async () => {

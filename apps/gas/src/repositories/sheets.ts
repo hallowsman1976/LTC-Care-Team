@@ -160,6 +160,28 @@ export function replaceRows(name: string, remove: (row: RowRecord) => boolean, r
   });
 }
 
+/**
+ * Deletes every row matching `predicate`, bottom-up so earlier row numbers stay valid; returns how
+ * many were deleted. Other rows are left untouched, unlike replaceRows which rewrites the sheet.
+ */
+export function deleteWhere(name: string, predicate: (row: RowRecord) => boolean): number {
+  return withScriptLock(() => {
+    const sheet = getSheet(name);
+    const values = sheet.getDataRange().getValues();
+    const headers = values[0]?.map(String) ?? [];
+    let deleted = 0;
+    for (let index = values.length - 1; index >= 1; index -= 1) {
+      const row = values[index]!;
+      if (!row.some((cell) => cell !== '') || !predicate(Object.fromEntries(headers.map((header, column) => [header, row[column]])))) continue;
+      // Sheets refuses to delete the last row below the frozen header; blank it instead (readers skip it).
+      if (sheet.getMaxRows() <= 2) sheet.getRange(index + 1, 1, 1, headers.length).setValues([headers.map(() => '')]);
+      else sheet.deleteRow(index + 1);
+      deleted += 1;
+    }
+    return deleted;
+  });
+}
+
 /** Applies `changes` to every row matching `predicate`; returns how many rows changed. */
 export function updateWhere(name: string, predicate: (row: RowRecord) => boolean, changes: RowRecord): number {
   return withScriptLock(() => {

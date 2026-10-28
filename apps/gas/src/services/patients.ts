@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { patientCreateSchema, patientGetSchema, patientUpdateSchema, villageLabel, type Actor, type Page } from '@smart-ltc/shared';
-import { appendUnique, getById, listAll, listPage, pageOf, updateWhere, versionedUpdate, withScriptLock, type RowRecord } from '../repositories/sheets';
+import { appendUnique, deleteWhere, getById, listAll, listPage, pageOf, updateWhere, versionedUpdate, withScriptLock, type RowRecord } from '../repositories/sheets';
 import { ensureColumns } from '../initializer';
+import { VISIT_RECORD_COLUMNS } from './visitRecords';
 import { activeEpisodeFor, assignCaregiver, requireEnabledUser } from './admin';
 import { requireCapability } from '../security/rbac';
 import { audit } from '../security/audit';
@@ -160,6 +161,51 @@ export function updatePatient(actor: Actor, payload: Record<string, unknown>): R
   const notes = [result.status !== 'ACTIVE' ? `STATUS:${result.status}` : '', input.statusNote ? 'NOTE' : '', input.cidCiphertext ? 'CID_CHANGED' : ''].filter(Boolean).join(';');
   audit(actor.userId, 'patient.update', 'Patient', input.patientId, 'SUCCESS', notes);
   return { patientId: input.patientId, ...result };
+}
+
+// Clinical and service records that make a patient part of the care history. Any of these means
+// the patient was actually cared for, so their record is closed by status instead of deleted.
+const EPISODE_HISTORY_SHEETS = ['ADLAssessments', 'LTCClassifications', 'RiskAssessments', 'CarePlans', 'VisitEncounters', 'Alerts', 'Referrals'];
+const VISIT_RECORD_PATIENT_COLUMN = VISIT_RECORD_COLUMNS[3]!;
+
+/** Whether any row matches; a sheet an older workbook never created holds no history. */
+function anyRow(sheet: string, predicate: (row: RowRecord) => boolean): boolean {
+  try {
+    return listPage(sheet, predicate, 1).length > 0;
+  } catch (error) {
+    if (String((error as Error).message).startsWith('SHEET_MISSING:')) return false;
+    throw error;
+  }
+}
+
+/**
+ * Removes a patient registered by mistake (wrong person, duplicate) together with the empty
+ * episode, assignments, upcoming visits and consents that registration created. A patient with
+ * any care history cannot be deleted: change their status instead.
+ */
+export function deletePatient(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
+  requireCapability(actor, 'patients:delete');
+  const { patientId } = patientGetSchema.parse(payload);
+  withScriptLock(() => {
+    if (!getById('Patients', 'patientId', patientId)) throw new Error('PATIENT_NOT_FOUND');
+    const episodeIds = new Set(listAll('CareEpisodes', (row) => String(row.patientId) === patientId).map((row) => String(row.episodeId)));
+    const inEpisode = (row: RowRecord) => episodeIds.has(String(row.episodeId));
+    const visitIds = new Set(listAll('VisitSchedules', inEpisode).map((row) => String(row.visitId)));
+    const hasHistory = EPISODE_HISTORY_SHEETS.some((sheet) => anyRow(sheet, inEpisode))
+      || anyRow('VisitSchedules', (row) => inEpisode(row) && !['PLANNED', 'ASSIGNED', 'CANCELLED'].includes(String(row.status)))
+      || anyRow('Visit_Records', (row) => String(row[VISIT_RECORD_PATIENT_COLUMN]) === patientId)
+      || anyRow('VisitImages', (row) => visitIds.has(String(row.visitId)))
+      || anyRow('BudgetLines', (row) => String(row.patientId) === patientId);
+    if (hasHistory) throw new Error('PATIENT_HAS_HISTORY');
+    deleteWhere('VisitSchedules', inEpisode);
+    deleteWhere('StaffAssignments', inEpisode);
+    deleteWhere('CareEpisodes', (row) => String(row.patientId) === patientId);
+    deleteWhere('PatientConsents', (row) => String(row.patientId) === patientId);
+    deleteWhere('PatientContacts', (row) => String(row.patientId) === patientId);
+    deleteWhere('Patients', (row) => String(row.patientId) === patientId);
+  });
+  audit(actor.userId, 'patient.delete', 'Patient', patientId, 'SUCCESS');
+  return { patientId, deleted: true };
 }
 
 export function listPatients(actor: Actor, payload: Record<string, unknown>): Page<RowRecord> {
