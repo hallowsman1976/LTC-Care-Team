@@ -127,7 +127,7 @@ git push origin main
 
 - [ ] เปิด `https://ltc-care-team.hallowsman.workers.dev/api/v1/health` ต้องได้ `"mode":"PILOT","passwordAuth":true`
   - ถ้าได้ `INTERNAL_ERROR` ให้ดู Workers → ltc-care-team → Logs จะมีข้อความ `INVALID_CONFIG:<ชื่อ>` หรือ `MISSING_SECRET:<ชื่อ>` บอกว่าค่าใดขาด
-- [ ] หน้าเว็บมีแถบ "PILOT — ข้อมูลจริงที่ได้รับอนุญาต" ไม่มีคำว่า DEMO
+- [ ] หน้าเว็บไม่มีแถบ DEMO (PILOT ไม่แสดงแถบสภาพแวดล้อม)
 - [ ] CM เข้าสู่ระบบครั้งแรกด้วยรหัสผ่านชั่วคราว ระบบแสดง QR ให้ผูกแอป Authenticator แล้วเข้าสู่ระบบได้
 - [ ] ออกจากระบบแล้วเข้าใหม่ด้วยรหัส 6 หลัก ได้; ใช้รหัสเดิมซ้ำ ไม่ได้
 - [ ] เรียก GAS `/exec` ตรงจากเบราว์เซอร์ ต้องได้ `REQUEST_REJECTED`
