@@ -10,7 +10,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt',
+      // There is no update prompt in the UI: take over as soon as a deploy is found, or an open
+      // tab keeps running the old version until every tab of the site is closed.
+      registerType: 'autoUpdate',
       manifest: {
         name: 'Smart LTC Care',
         short_name: 'Smart LTC',
