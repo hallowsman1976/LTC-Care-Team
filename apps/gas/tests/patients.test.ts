@@ -56,6 +56,18 @@ describe('patient registration', () => {
     expect(records('Patients')).toHaveLength(0);
   });
 
+  it('lets an ADMIN register, load and edit a patient on behalf of a named CM', () => {
+    seed('Users', [{ userId: 'usr-admin', role: 'ADMIN', enabled: 'true', displayName: 'ผู้ดูแลระบบ' }]);
+    expect(post('patient.create', 'usr-admin', patient())).toMatchObject({ ok: false, code: 'CARE_MANAGER_REQUIRED' });
+    expect(post('patient.create', 'usr-admin', patient({ careManagerId: 'usr-cm2' }))).toMatchObject({ ok: true, data: { status: 'CREATED', patient: { careManagerId: 'usr-cm2', createdBy: 'usr-admin' } } });
+    const patientId = String(records('Patients')[0]!.patientId);
+    expect(post('patient.get', 'usr-admin', { patientId })).toMatchObject({ ok: true, data: { patientId, careManagerId: 'usr-cm2' } });
+    const { cidCiphertext: _c, cidLookupHash: _h, legalBasis: _l, ...fields } = patient();
+    expect(post('patient.update', 'usr-admin', { ...fields, patientId, recordVersion: 1, status: 'MOVED', cidCiphertext: '', cidLookupHash: '' })).toMatchObject({ ok: true, data: { status: 'MOVED' } });
+    expect(records('Patients')[0]).toMatchObject({ status: 'MOVED', careManagerId: 'usr-cm2' });
+    expect(post('patient.get', 'usr-cg', { patientId })).toMatchObject({ ok: false });
+  });
+
   it('adds the new columns to a Patients sheet created before they existed', () => {
     const old = ['patientId', 'localCode', 'hn', 'cidCiphertext', 'cidLookupHash', 'fullName', 'birthDate', 'sex', 'address', 'village', 'phone', 'status', 'createdAt', 'updatedAt', 'createdBy', 'recordVersion'];
     fakeGas.sheets.set('Patients', new FakeSheet('Patients', [old, ['pt-old', 'L-1', 'HN-OLD', '', '', 'คนเดิม', '1940-01-01', 'MALE', 'บ้าน', 'หมู่ 1', '', 'ACTIVE', '', '', '', 1]]));

@@ -13,7 +13,7 @@ const json = (value: unknown) => JSON.stringify(value);
 
 const cmActor = { userId: 'usr-cm', role: 'CM', capabilities: ['patients:read', 'patients:write', 'adl:approve', 'classification:confirm', 'carePlan:approve', 'encounter:review', 'export:phi', 'users:manage', 'assignments:manage', 'patients:import'] };
 const cgActor = { userId: 'usr-cg', role: 'CG', capabilities: ['patients:read'] };
-const adminActor = { userId: 'usr-admin', role: 'ADMIN', capabilities: ['users:manage', 'assignments:manage', 'patients:import', 'export:phi'] };
+const adminActor = { userId: 'usr-admin', role: 'ADMIN', capabilities: ['patients:read', 'patients:write', 'users:manage', 'assignments:manage', 'patients:import', 'export:phi'] };
 
 async function loginAs(env: ReturnType<typeof makeEnv>, actor: typeof cmActor | typeof cgActor | typeof adminActor): Promise<string> {
   const secret = 'JBSWY3DPEHPK3PXP';
@@ -158,6 +158,21 @@ describe('gas proxy surface', () => {
     expect(saved.status).toBe(200);
     expect(calls[1]).toMatchObject({ action: 'patient.update', payload: { cidCiphertext: expect.any(String), cidLookupHash: expect.any(String) } });
     expect(JSON.stringify(calls[1]!.payload)).not.toContain('1100000000088');
+  });
+
+  it('lets an ADMIN register and edit patients but not a CG', async () => {
+    const env = makeEnv();
+    const patient = { localCode: 'L-1', hn: 'HN-1', cid: '1100000000001', fullName: 'นางสมมติ', birthDate: '1945-03-15', sex: 'FEMALE', address: '12', careManagerId: 'usr-cm', legalBasis: 'PUBLIC_HEALTH', privacyNoticeVersion: 'v1' };
+    const cgCookie = await loginAs(env, cgActor);
+    const denied = await call(request('/patients', { method: 'POST', headers: { cookie: `__Host-ltc_session=${cgCookie}` }, body: json(patient) }), env);
+    expect(denied.status).toBe(403);
+    const cookie = await loginAs(env, adminActor);
+    const calls = stubGas((gasCall) => (gasCall.action === 'patient.create' ? { status: 'CREATED', patient: { patientId: 'pt-1' } } : { patientId: 'pt-1', hn: 'HN-1' }));
+    const created = await call(request('/patients', { method: 'POST', headers: { cookie: `__Host-ltc_session=${cookie}` }, body: json(patient) }), env);
+    expect(created.status).toBe(200);
+    const loaded = await call(request('/patients/get', { method: 'POST', headers: { cookie: `__Host-ltc_session=${cookie}` }, body: json({ patientId: 'pt-1' }) }), env);
+    expect(loaded.status).toBe(200);
+    expect(calls.map((gasCall) => gasCall.action)).toEqual(['patient.create', 'patient.get']);
   });
 
   it('maps GAS failures to meaningful statuses without leaking internal codes', async () => {

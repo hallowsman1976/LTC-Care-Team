@@ -188,7 +188,7 @@ function PatientFields({ form, actor, cidLabel, cidHint, caregiverLocked, onErro
 
     <Section title="6. ผู้รับผิดชอบ">
       <label className={labelClass}>ผู้จัดการการดูแล (CM)
-        {careManagers.length ? <select {...form.register('careManagerId')} className={fieldClass}>{careManagers.map((user) => <option key={user.userId} value={user.userId}>{user.displayName}{user.userId === actor.userId ? ' (ฉัน)' : ''}</option>)}</select>
+        {careManagers.length ? <select {...form.register('careManagerId')} className={fieldClass}>{actor.role !== 'CM' && <option value="">เลือกผู้จัดการการดูแล</option>}{careManagers.map((user) => <option key={user.userId} value={user.userId}>{user.displayName}{user.userId === actor.userId ? ' (ฉัน)' : ''}</option>)}</select>
           : <p className={`${fieldClass} bg-slate-50 text-slate-600`}>{actor.role === 'CM' ? 'ท่าน (ผู้ลงทะเบียน)' : 'ไม่ระบุ'}</p>}
       </label>
       {canAssign && <label className={labelClass}>ผู้ดูแล (CG) <Optional/>

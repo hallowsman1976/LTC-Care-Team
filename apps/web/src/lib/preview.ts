@@ -48,7 +48,7 @@ export function previewRespond(path: string, init: RequestInit | undefined, role
   }
 
   if ((path === '/patients/get' || path === '/patients/update') && method === 'POST') {
-    if (actor.role !== 'CM' || !actor.capabilities.includes('patients:write')) return reply(403, envelope(false, 'FORBIDDEN', 'ไม่มีสิทธิ์แก้ไขผู้รับบริการ', null));
+    if (!actor.capabilities.includes('patients:write')) return reply(403, envelope(false, 'FORBIDDEN', 'ไม่มีสิทธิ์แก้ไขผู้รับบริการ', null));
     if (path.endsWith('/get')) {
       const input = patientGetSchema.safeParse(parseBody(init));
       return input.success ? reply(200, envelope(true, 'OK', '', demoPatientDetail(input.data.patientId))) : reply(400, envelope(false, 'VALIDATION_FAILED', 'ข้อมูลไม่ครบหรือไม่ถูกต้อง', null));
@@ -68,7 +68,7 @@ export function previewRespond(path: string, init: RequestInit | undefined, role
   const write = WRITE_ROUTES[path];
   const isPatientCreate = path === '/patients' && method === 'POST';
   if ((write || isPatientCreate) && method === 'POST') {
-    const allowed = isPatientCreate ? actor.role === 'CM' && actor.capabilities.includes('patients:write') : actor.capabilities.includes(write!.capability);
+    const allowed = isPatientCreate ? actor.capabilities.includes('patients:write') : actor.capabilities.includes(write!.capability);
     if (!allowed) return reply(403, envelope(false, 'FORBIDDEN', 'ไม่มีสิทธิ์ดำเนินการนี้', null));
     const input = (isPatientCreate ? patientCreateSchema : write!.schema).safeParse(parseBody(init));
     if (!input.success) return reply(400, envelope(false, 'VALIDATION_FAILED', 'ข้อมูลไม่ครบหรือไม่ถูกต้อง', null));

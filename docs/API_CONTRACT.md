@@ -19,9 +19,9 @@ External API อยู่ใต้ `/api/v1`. ทุก response JSON ใช้ 
 | GET | `/visits` | `patients:read` | `{items, hasMore}`; CG sees own assignments |
 | GET | `/alerts` | `patients:read` | `{items, hasMore}`; empty for CG |
 | GET | `/reviews` | `encounter:review` | `{items, hasMore}` |
-| POST | `/patients` | CM + `patients:write` | CID transformed at Worker before GAS |
-| POST | `/patients/get` | CM + `patients:write` | `patientGetSchema`; CID decrypted at Worker and returned as `cidLast4` only |
-| POST | `/patients/update` | CM + `patients:write` | `patientUpdateSchema`; version-checked; empty `cid` keeps the stored one; leaving ACTIVE closes the episode, ends assignments and cancels upcoming visits; changing `caregiverId` needs `assignments:manage` |
+| POST | `/patients` | `patients:write` (CM, ADMIN) | CID transformed at Worker before GAS; an ADMIN must name `careManagerId` (`CARE_MANAGER_REQUIRED`) |
+| POST | `/patients/get` | `patients:write` (CM, ADMIN) | `patientGetSchema`; CID decrypted at Worker and returned as `cidLast4` only |
+| POST | `/patients/update` | `patients:write` (CM, ADMIN) | `patientUpdateSchema`; version-checked; empty `cid` keeps the stored one; leaving ACTIVE closes the episode, ends assignments and cancels upcoming visits; changing `caregiverId` needs `assignments:manage` |
 | POST | `/adl-assessments` | `adl:approve` | `adlCreateSchema`; episode resolved from `patientId` |
 | POST | `/ltc-classifications` | `classification:confirm` | `classificationConfirmSchema`; uses latest approved ADL |
 | POST | `/care-plans` | `carePlan:approve` | `carePlanCreateSchema`; creates plan + intervention |

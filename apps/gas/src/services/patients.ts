@@ -14,8 +14,9 @@ const forwardedPatientSchema = patientCreateSchema.omit({ cid: true }).extend({
 
 export function createPatient(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
   requireCapability(actor, 'patients:write');
-  if (actor.role !== 'CM') throw new Error('CM_REQUIRED');
   const input = forwardedPatientSchema.parse(payload);
+  // A CM registering is responsible by default; anyone else (an ADMIN) must name the CM.
+  if (actor.role !== 'CM' && !input.careManagerId) throw new Error('CARE_MANAGER_REQUIRED');
   if (input.caregiverId) requireCapability(actor, 'assignments:manage');
   ensureColumns('Patients');
   const hn = input.hn;
@@ -74,7 +75,6 @@ export function createPatient(actor: Actor, payload: Record<string, unknown>): R
 ﻿/** One patient for the edit form. The gateway turns the CID ciphertext into its last four digits. */
 export function getPatient(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
   requireCapability(actor, 'patients:write');
-  if (actor.role !== 'CM') throw new Error('CM_REQUIRED');
   const { patientId } = patientGetSchema.parse(payload);
   const row = getById('Patients', 'patientId', patientId);
   if (!row) throw new Error('PATIENT_NOT_FOUND');
@@ -115,7 +115,6 @@ function unassignCaregiver(patientId: string): void {
  */
 export function updatePatient(actor: Actor, payload: Record<string, unknown>): Record<string, unknown> {
   requireCapability(actor, 'patients:write');
-  if (actor.role !== 'CM') throw new Error('CM_REQUIRED');
   const input = forwardedPatientUpdateSchema.parse(payload);
   ensureColumns('Patients');
   if (input.careManagerId) requireEnabledUser(input.careManagerId, 'CM');
@@ -143,7 +142,7 @@ export function updatePatient(actor: Actor, payload: Record<string, unknown>): R
       mainCaregiverName: input.mainCaregiverName ?? '', mainCaregiverPhone: input.mainCaregiverPhone ?? '', relationship: input.relationship ?? '',
       rightType: input.rightType ?? '', diseases: input.diseases ?? '', dependencyStatus: input.dependencyStatus ?? '',
       adlScore: input.adlScore ?? '', taiGroup: input.taiGroup ?? '', ppsScore: input.ppsScore ?? '', mentalHealthStatus: input.mentalHealthStatus ?? '',
-      careManagerId: input.careManagerId || String(current.careManagerId || actor.userId), registerDate: input.registerDate || String(current.registerDate ?? ''),
+      careManagerId: input.careManagerId || String(current.careManagerId || (actor.role === 'CM' ? actor.userId : '')), registerDate: input.registerDate || String(current.registerDate ?? ''),
       status: input.status, caregiverId: nextCaregiver,
       ...(input.status !== String(current.status || 'ACTIVE') ? { statusNote: input.statusNote ?? '', statusChangedAt: new Date().toISOString() } : {}),
       ...(input.cidCiphertext ? { cidCiphertext: input.cidCiphertext, cidLookupHash: input.cidLookupHash } : {})

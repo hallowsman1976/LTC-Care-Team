@@ -131,7 +131,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
   }
 
   if (path === '/patients' && request.method === 'POST') {
-    if (actor.role !== 'CM' || !has(actor, 'patients:write')) return failure(403, 'FORBIDDEN', 'ไม่มีสิทธิ์เพิ่มผู้รับบริการ', requestId);
+    if (!has(actor, 'patients:write')) return failure(403, 'FORBIDDEN', 'ไม่มีสิทธิ์เพิ่มผู้รับบริการ', requestId);
     const input = patientCreateSchema.parse(await request.json());
     if (localDemo) return ok({ demo: true, status: 'CREATED', patient: { patientId: crypto.randomUUID(), localCode: input.localCode } }, requestId);
     if (!isDemoMode(env) && (!input.legalBasis || !input.privacyNoticeVersion)) {
@@ -189,7 +189,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
   }
 
   if ((path === '/patients/get' || path === '/patients/update') && request.method === 'POST') {
-    if (actor.role !== 'CM' || !has(actor, 'patients:write')) return failure(403, 'FORBIDDEN', 'ไม่มีสิทธิ์แก้ไขผู้รับบริการ', requestId);
+    if (!has(actor, 'patients:write')) return failure(403, 'FORBIDDEN', 'ไม่มีสิทธิ์แก้ไขผู้รับบริการ', requestId);
     if (path === '/patients/get') {
       const input = patientGetSchema.parse(await request.json());
       if (localDemo) return ok(demoPatientDetail(input.patientId), requestId);
