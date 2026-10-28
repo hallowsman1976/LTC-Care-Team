@@ -26,29 +26,71 @@ export interface CaseManagerInput {
   email?: string;
 }
 
+function normalizedNewUsername(raw: string): string {
+  const username = String(raw ?? '').trim().toLowerCase();
+  if (!USERNAME.test(username)) throw new Error('INVALID_USERNAME');
+  return username;
+}
+
+function requireDisplayName(raw: string): string {
+  const displayName = String(raw ?? '').trim();
+  if (!displayName) throw new Error('DISPLAY_NAME_REQUIRED');
+  return displayName;
+}
+
+/** Call inside the script lock, before writing the new user. */
+function requireFreeUsername(username: string): void {
+  const taken = listAll('Users', (row) => String(row.usernameNormalized).toLowerCase() === username).length > 0
+    || listAll('AuthCredentials', (row) => String(row.status) === 'ACTIVE' && String(row.identifierNormalized).toLowerCase() === username).length > 0;
+  if (taken) throw new Error('USERNAME_TAKEN');
+}
+
 /**
  * Creates a CM who can sign in with a password, with the clinical credential the person running
  * this has verified today. The CM sets up their authenticator app at first sign-in.
  */
 export function createPilotCaseManager(input: CaseManagerInput): { userId: string; username: string } {
   requirePilotPasswordAuth();
-  const username = String(input.username ?? '').trim().toLowerCase();
-  if (!USERNAME.test(username)) throw new Error('INVALID_USERNAME');
-  const displayName = String(input.displayName ?? '').trim();
-  if (!displayName) throw new Error('DISPLAY_NAME_REQUIRED');
+  const username = normalizedNewUsername(input.username);
+  const displayName = requireDisplayName(input.displayName);
   if (!String(input.credentialType ?? '').trim()) throw new Error('CREDENTIAL_TYPE_REQUIRED');
   if (!DATE.test(input.qualificationExpiry) || new Date(input.qualificationExpiry).valueOf() <= Date.now()) throw new Error('QUALIFICATION_EXPIRY_INVALID');
   const userId = `usr-${Utilities.getUuid()}`;
   const now = new Date().toISOString();
   withScriptLock(() => {
-    const taken = listAll('Users', (row) => String(row.usernameNormalized).toLowerCase() === username).length > 0
-      || listAll('AuthCredentials', (row) => String(row.status) === 'ACTIVE' && String(row.identifierNormalized).toLowerCase() === username).length > 0;
-    if (taken) throw new Error('USERNAME_TAKEN');
+    requireFreeUsername(username);
     appendUnique('Users', 'userId', { userId, identitySubject: '', email: input.email ?? '', usernameNormalized: username, displayName, role: 'CM', enabled: 'true', createdAt: now, updatedAt: now });
     appendUnique('StaffProfiles', 'staffId', { staffId: `stf-${Utilities.getUuid()}`, userId, staffType: 'CM', credentialType: input.credentialType.trim(), credentialVerifiedAt: now.slice(0, 10), qualificationExpiry: input.qualificationExpiry });
     storePasswordCredential(userId, username, input.password);
   });
   audit('editor', 'pilot.caseManager.create', 'User', userId, 'SUCCESS');
+  return { userId, username };
+}
+
+export interface AdminInput {
+  username: string;
+  displayName: string;
+  password: string;
+  email?: string;
+}
+
+/**
+ * Creates a system administrator (ADMIN role: users, assignments, patient import, PHI export,
+ * budget read) who signs in with a password and sets up their authenticator app at first sign-in.
+ * ADMIN has no clinical credential, so there is no staff profile to verify or renew.
+ */
+export function createPilotAdmin(input: AdminInput): { userId: string; username: string } {
+  requirePilotPasswordAuth();
+  const username = normalizedNewUsername(input.username);
+  const displayName = requireDisplayName(input.displayName);
+  const userId = `usr-${Utilities.getUuid()}`;
+  const now = new Date().toISOString();
+  withScriptLock(() => {
+    requireFreeUsername(username);
+    appendUnique('Users', 'userId', { userId, identitySubject: '', email: input.email ?? '', usernameNormalized: username, displayName, role: 'ADMIN', enabled: 'true', createdAt: now, updatedAt: now });
+    storePasswordCredential(userId, username, input.password);
+  });
+  audit('editor', 'pilot.admin.create', 'User', userId, 'SUCCESS');
   return { userId, username };
 }
 

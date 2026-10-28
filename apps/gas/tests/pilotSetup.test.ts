@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { installFakeGas, parseOutput, records, seed, signedEvent } from './fakeGas';
 import { doPost } from '../src/main';
-import { addApprovedRuleset, createPilotCaseManager, renewCaseManagerCredential, resetUserPassword } from '../src/admin/pilotSetup';
+import { addApprovedRuleset, createPilotAdmin, createPilotCaseManager, renewCaseManagerCredential, resetUserPassword } from '../src/admin/pilotSetup';
 
 const pilot = { APP_MODE: 'PILOT', PASSWORD_AUTH_ENABLED: 'true', PASSWORD_PEPPER: 'p'.repeat(32), PASSWORD_ITERATIONS: '50' };
 const nextYear = `${new Date().getFullYear() + 1}-12-31`;
@@ -25,6 +25,16 @@ describe('PILOT password sign-in', () => {
     expect(() => createPilotCaseManager(cm)).toThrow('USERNAME_TAKEN');
     expect(() => createPilotCaseManager({ ...cm, username: 'cm.two', qualificationExpiry: '2020-01-01' })).toThrow('QUALIFICATION_EXPIRY_INVALID');
     expect(() => createPilotCaseManager({ ...cm, username: 'cm.three', password: 'short' })).toThrow('PASSWORD_TOO_SHORT');
+  });
+
+  it('creates an ADMIN without a staff profile who can sign in', () => {
+    const { userId, username } = createPilotAdmin({ username: 'Admin.One', displayName: 'ผู้ดูแลระบบ หนึ่ง', password: 'a long admin password' });
+    expect(username).toBe('admin.one');
+    expect(records('Users')[0]).toMatchObject({ userId, role: 'ADMIN', enabled: 'true' });
+    expect(records('StaffProfiles')).toHaveLength(0);
+    expect(signIn('admin.one', 'a long admin password')).toMatchObject({ ok: true, data: { userId, role: 'ADMIN' } });
+    expect(records('AuditLogs').at(-1)).toMatchObject({ action: 'pilot.admin.create', entityId: userId });
+    expect(() => createPilotCaseManager({ ...cm, username: 'admin.one' })).toThrow('USERNAME_TAKEN');
   });
 
   it('resets a password and renews a credential', () => {

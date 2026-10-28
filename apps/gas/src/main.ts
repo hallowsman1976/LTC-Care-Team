@@ -15,7 +15,7 @@ import { runScheduler } from './jobs/schedule';
 import { setDemoCredential as setCredential } from './admin/credentials';
 import { diagnoseDemoLogin as diagnoseLogin } from './admin/diagnose';
 import { seedDemoData as seedDemo } from './admin/demoData';
-import { addApprovedRuleset as addRuleset, createPilotCaseManager as createCaseManager, renewCaseManagerCredential as renewCredential, resetUserPassword as resetPassword, type CaseManagerInput, type RulesetInput } from './admin/pilotSetup';
+import { addApprovedRuleset as addRuleset, createPilotAdmin as createAdmin, createPilotCaseManager as createCaseManager, renewCaseManagerCredential as renewCredential, resetUserPassword as resetPassword, type AdminInput, type CaseManagerInput, type RulesetInput } from './admin/pilotSetup';
 import { runLoadProbe as probe, seedLoadTestData as seedLoad, type LoadTestOptions } from './admin/loadTest';
 import { backupWorkbook as backup, installBackupTrigger as installBackup } from './jobs/backup';
 import { archiveAuditLogs as archiveAudit, installAuditArchiveTrigger as installArchiveTrigger } from './jobs/auditArchive';
@@ -150,6 +150,11 @@ export function seedDemoData(cgIdentifier?: string): ReturnType<typeof seedDemo>
 export function createPilotCaseManager(input: CaseManagerInput): ReturnType<typeof createCaseManager> {
   requireOperationalMode();
   return createCaseManager(input);
+}
+
+export function createPilotAdmin(input: AdminInput): ReturnType<typeof createAdmin> {
+  requireOperationalMode();
+  return createAdmin(input);
 }
 
 export function renewCaseManagerCredential(username: string, credentialType: string, qualificationExpiry: string): ReturnType<typeof renewCredential> {
