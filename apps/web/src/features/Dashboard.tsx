@@ -28,7 +28,7 @@ function Hero({ actor }: { actor: Actor }) {
 function FollowUpTable({ visits }: { visits: FollowUpVisit[] }) {
   return <Card className="overflow-hidden !p-0">
     <div className="flex items-center justify-between gap-3 p-4 md:p-5">
-      <div><h3 className="text-lg font-bold">งานเยี่ยมที่ต้องติดตาม</h3><p className="text-sm text-slate-600">งานที่ยังไม่ปิด 5 รายการ เรียงงานเก่าสุดขึ้นก่อน</p></div>
+      <div><h3 className="text-lg font-bold">งานเยี่ยมที่ต้องติดตาม</h3><p className="text-sm text-slate-600">งานที่ยังไม่ปิดไม่เกิน 5 รายการ เรียงงานเก่าสุดขึ้นก่อน</p></div>
       <Link to="/visits" className="inline-flex min-h-11 shrink-0 items-center text-sm font-semibold text-primary">ดูทั้งหมด<ChevronRight aria-hidden size={18}/></Link>
     </div>
     {visits.length === 0 ? <p className="border-t border-slate-200 p-6 text-center text-slate-500">ไม่มีงานเยี่ยมค้าง</p> : <>
