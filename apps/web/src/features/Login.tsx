@@ -72,13 +72,15 @@ function GoogleLogin() {
   return <main className="grid min-h-screen place-items-center bg-slate-50 p-6">
     <Card className="w-full max-w-md p-7">
       <UnitLogo/>
-      <p className="text-sm font-bold text-primary">SMART LTC CARE</p>
-      <h1 className="mt-2 text-2xl font-bold">เข้าสู่ระบบหน่วยบริการ</h1>
-      <p className="mt-2 text-sm text-slate-600">ใช้บัญชี Google Workspace ของหน่วยงานเท่านั้น ระบบจะไม่รับบัญชีภายนอกโดเมน</p>
+      <div className="text-center">
+        <p className="text-sm font-bold text-primary">SMART LTC CARE</p>
+        <h1 className="mt-2 text-2xl font-bold">เข้าสู่ระบบหน่วยบริการ</h1>
+        <p className="mt-2 text-sm text-slate-600">ใช้บัญชี Google Workspace ของหน่วยงานเท่านั้น ระบบจะไม่รับบัญชีภายนอกโดเมน</p>
+      </div>
       <div className="mt-6 flex justify-center" ref={container}/>
       {!clientId && <ErrorState message="ยังไม่ได้กำหนด Google Client ID สำหรับระบบจริง"/>}
       {error && <div className="mt-4"><ErrorState message={error}/></div>}
-      <p className="mt-6 text-xs text-slate-500">การเข้าใช้งานและการเปลี่ยนแปลงข้อมูลจะถูกบันทึกเพื่อการตรวจสอบ</p>
+      <p className="mt-6 text-center text-xs text-slate-500">การเข้าใช้งานและการเปลี่ยนแปลงข้อมูลจะถูกบันทึกเพื่อการตรวจสอบ</p>
     </Card>
   </main>;
 }
@@ -116,11 +118,13 @@ function PasswordLogin() {
   return <main className="grid min-h-screen place-items-center bg-slate-50 p-6">
     <Card className="w-full max-w-md p-7">
       <UnitLogo/>
-      {isDemoMode ? <p className="text-sm font-bold text-danger">DEMO ONLY — ข้อมูลจำลอง</p> : <p className="text-sm font-bold text-primary">SMART LTC CARE</p>}
-      <h1 className="mt-2 text-2xl font-bold">{isDemoMode ? 'เข้าสู่ระบบทดลอง' : 'เข้าสู่ระบบหน่วยบริการ'}</h1>
-      <p className="mt-2 text-sm text-slate-600">{isDemoMode
-        ? 'บัญชีทดลองสร้างโดยผู้ดูแลระบบ CM และผู้ดูแลระบบต้องกรอกรหัสยืนยัน 6 หลักจากแอป Authenticator'
-        : 'กรอกชื่อผู้ใช้ รหัสผ่าน และรหัสยืนยัน 6 หลักจากแอป Authenticator ในโทรศัพท์ของท่าน ครั้งแรกที่เข้าสู่ระบบ ระบบจะพาตั้งค่าแอปให้ก่อน'}</p>
+      <div className="text-center">
+        {isDemoMode ? <p className="text-sm font-bold text-danger">DEMO ONLY — ข้อมูลจำลอง</p> : <p className="text-sm font-bold text-primary">SMART LTC CARE</p>}
+        <h1 className="mt-2 text-2xl font-bold">{isDemoMode ? 'เข้าสู่ระบบทดลอง' : 'เข้าสู่ระบบหน่วยบริการ'}</h1>
+        <p className="mt-2 text-sm text-slate-600">{isDemoMode
+          ? 'บัญชีทดลองสร้างโดยผู้ดูแลระบบ CM และผู้ดูแลระบบต้องกรอกรหัสยืนยัน 6 หลักจากแอป Authenticator'
+          : 'กรอกชื่อผู้ใช้ รหัสผ่าน และรหัสยืนยัน 6 หลักจากแอป Authenticator ในโทรศัพท์ของท่าน ครั้งแรกที่เข้าสู่ระบบ ระบบจะพาตั้งค่าแอปให้ก่อน'}</p>
+      </div>
       <form onSubmit={submit} className="mt-6 space-y-4">
         <label className="block text-sm font-semibold text-slate-700">ชื่อผู้ใช้<input name="identifier" autoComplete="username" autoCapitalize="none" required className={fieldClass}/></label>
         <div>
@@ -139,7 +143,7 @@ function PasswordLogin() {
         <Button type="submit" disabled={busy} className="w-full">เข้าสู่ระบบ</Button>
       </form>
       {error && <div className="mt-4"><ErrorState message={error}/></div>}
-      {!isDemoMode && <p className="mt-6 text-xs text-slate-500">ลืมรหัสผ่านหรือเปลี่ยนโทรศัพท์ ติดต่อผู้จัดการการดูแล (CM) · การเข้าใช้งานและการเปลี่ยนแปลงข้อมูลจะถูกบันทึกเพื่อการตรวจสอบ</p>}
+      {!isDemoMode && <p className="mt-6 text-center text-xs text-slate-500">ลืมรหัสผ่านหรือเปลี่ยนโทรศัพท์ ติดต่อผู้จัดการการดูแล (CM) · การเข้าใช้งานและการเปลี่ยนแปลงข้อมูลจะถูกบันทึกเพื่อการตรวจสอบ</p>}
     </Card>
   </main>;
 }
