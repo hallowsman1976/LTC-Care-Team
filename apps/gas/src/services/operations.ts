@@ -14,32 +14,43 @@ function visitVisibleTo(actor: Actor, row: Record<string, unknown>): boolean {
   return actor.role !== 'CG' || String(row.assignedStaffId) === actor.userId;
 }
 
-export function dashboardSummary(actor: Actor): Record<string, number> {
-  const today = isoDateInBangkok();
-  const visits = listAll('VisitSchedules', (row) => visitVisibleTo(actor, row));
-  const dueToday = visits.filter((row) => String(row.visitDateTime).slice(0, 10) === today && !['VERIFIED', 'CANCELLED'].includes(String(row.status))).length;
-  const overdue = visits.filter((row) => String(row.visitDateTime).slice(0, 10) < today && !['VERIFIED', 'CANCELLED'].includes(String(row.status))).length;
-  const reviewQueue = actor.role === 'CG' ? 0 : listAll('VisitEncounters', (row) => String(row.status) === 'SUBMITTED').length;
-  const highRiskAlerts = actor.role === 'CG' ? 0 : listAll('Alerts', (row) => String(row.severity) === 'HIGH' && String(row.status) !== 'CLOSED').length;
-  const drafts = 0;
-  return { dueToday, overdue, reviewQueue, highRiskAlerts, drafts };
-}
-
-export function listVisits(actor: Actor): Page<RowRecord> {
-  requireCapability(actor, 'patients:read');
-  const page = pageOf('VisitSchedules', (row) => visitVisibleTo(actor, row), 50);
-  // Caregivers work by name, not episode id: resolve names for this page only.
-  const episodeIds = new Set(page.items.map((row) => String(row.episodeId)));
+/** Caregivers work by name, not episode id: resolves names for the given rows only. */
+function visitProjector(visits: RowRecord[]): (row: RowRecord) => RowRecord {
+  const episodeIds = new Set(visits.map((row) => String(row.episodeId)));
   const patientOfEpisode = new Map(listAll('CareEpisodes', (row) => episodeIds.has(String(row.episodeId)))
     .map((row) => [String(row.episodeId), String(row.patientId)]));
   const patientIds = new Set(patientOfEpisode.values());
   const nameOfPatient = new Map(listAll('Patients', (row) => patientIds.has(String(row.patientId)))
     .map((row) => [String(row.patientId), String(row.fullName)]));
-  return mapPage(page, (row) => ({
+  return (row) => ({
     visitId: row.visitId, episodeId: row.episodeId, visitDateTime: row.visitDateTime,
     expectedEndTime: row.expectedEndTime, visitType: row.visitType, status: row.status,
     patientName: nameOfPatient.get(patientOfEpisode.get(String(row.episodeId)) ?? '') ?? ''
-  }));
+  });
+}
+
+const FOLLOW_UP_VISIT_LIMIT = 5;
+
+export function dashboardSummary(actor: Actor): Record<string, number | RowRecord[]> {
+  const today = isoDateInBangkok();
+  const openVisits = listAll('VisitSchedules', (row) => visitVisibleTo(actor, row) && !['VERIFIED', 'CANCELLED'].includes(String(row.status)));
+  const dueToday = openVisits.filter((row) => String(row.visitDateTime).slice(0, 10) === today).length;
+  const overdue = openVisits.filter((row) => String(row.visitDateTime).slice(0, 10) < today).length;
+  // Oldest first across every open visit: a page of the sheet could leave out what is most overdue.
+  const followUp = actor.capabilities.includes('patients:read')
+    ? [...openVisits].sort((left, right) => String(left.visitDateTime).localeCompare(String(right.visitDateTime))).slice(0, FOLLOW_UP_VISIT_LIMIT)
+    : [];
+  const followUpVisits = followUp.map(visitProjector(followUp));
+  const reviewQueue = actor.role === 'CG' ? 0 : listAll('VisitEncounters', (row) => String(row.status) === 'SUBMITTED').length;
+  const highRiskAlerts = actor.role === 'CG' ? 0 : listAll('Alerts', (row) => String(row.severity) === 'HIGH' && String(row.status) !== 'CLOSED').length;
+  const drafts = 0;
+  return { dueToday, overdue, reviewQueue, highRiskAlerts, drafts, followUpVisits };
+}
+
+export function listVisits(actor: Actor): Page<RowRecord> {
+  requireCapability(actor, 'patients:read');
+  const page = pageOf('VisitSchedules', (row) => visitVisibleTo(actor, row), 50);
+  return mapPage(page, visitProjector(page.items));
 }
 
 export function listAlerts(actor: Actor): Page<RowRecord> {

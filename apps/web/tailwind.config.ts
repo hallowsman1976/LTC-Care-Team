@@ -5,7 +5,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#0284C7', success: '#16A34A', warning: '#D97706', danger: '#DC2626', ink: '#0F172A'
+        primary: '#2563EB', success: '#16A34A', warning: '#D97706', danger: '#DC2626', ink: '#0F172A', navy: '#0F1E3C'
       },
       // Self-hosted variable font from @fontsource-variable/noto-sans-thai (imported in main.tsx).
       fontFamily: { sans: ['"Noto Sans Thai Variable"', '"Noto Sans Thai"', 'system-ui', 'sans-serif'] }

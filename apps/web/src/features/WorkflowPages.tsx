@@ -4,7 +4,7 @@ import { AlertTriangle, CalendarDays, ClipboardCheck, FileText } from 'lucide-re
 import { Link } from 'react-router-dom';
 import type { Actor, Page as ListPage } from '@smart-ltc/shared';
 import { api, post } from '../lib/api';
-import { Button, Card, ErrorState, Loading, Status } from '../components/ui';
+import { Button, Card, ErrorState, Loading, Status, VisitStatusBadge } from '../components/ui';
 
 function Page({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return <div className="space-y-5"><div><h2 className="text-2xl font-bold">{title}</h2><p className="text-slate-600">{description}</p></div>{children}</div>;
@@ -29,7 +29,7 @@ function useVisits() {
 export function Visits({ actor }: { actor: Actor }) {
   const query = useVisits();
   return <Page title="งานเยี่ยมบ้าน" description="รายการที่ได้รับมอบหมายและสถานะการส่งงาน">
-    {query.isLoading ? <Loading/> : query.error ? <ErrorState message={query.error.message}/> : query.data?.items.length ? <div className="space-y-3"><MoreNotice page={query.data}/>{query.data.items.map((visit) => <Card key={visit.visitId}><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3"><ClipboardCheck aria-hidden className="text-primary"/><div><p className="font-bold">{new Date(visit.visitDateTime).toLocaleString('th-TH')}</p><p className="text-sm text-slate-500">{visit.patientName ? `${visit.patientName} · ` : ''}{visit.visitType || 'เยี่ยมตาม Care Plan'}</p></div></div><div className="flex flex-wrap items-center justify-end gap-2"><Status tone={visit.status === 'VERIFIED' ? 'success' : visit.status === 'SUBMITTED' ? 'warning' : 'neutral'}>{visit.status}</Status>{actor.role === 'CG' && visit.status === 'ASSIGNED' && <Link to={`/visits/${encodeURIComponent(visit.visitId)}`} className="inline-flex min-h-11 items-center rounded-xl bg-primary px-3 text-sm font-semibold text-white">บันทึกการเยี่ยม</Link>}</div></div></Card>)}</div> : <Card><p className="text-center text-slate-500">ไม่มีงานเยี่ยมในขณะนี้</p></Card>}
+    {query.isLoading ? <Loading/> : query.error ? <ErrorState message={query.error.message}/> : query.data?.items.length ? <div className="space-y-3"><MoreNotice page={query.data}/>{query.data.items.map((visit) => <Card key={visit.visitId}><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3"><ClipboardCheck aria-hidden className="text-primary"/><div><p className="font-bold">{new Date(visit.visitDateTime).toLocaleString('th-TH')}</p><p className="text-sm text-slate-500">{visit.patientName ? `${visit.patientName} · ` : ''}{visit.visitType || 'เยี่ยมตาม Care Plan'}</p></div></div><div className="flex flex-wrap items-center justify-end gap-2"><VisitStatusBadge status={visit.status}/>{actor.role === 'CG' && visit.status === 'ASSIGNED' && <Link to={`/visits/${encodeURIComponent(visit.visitId)}`} className="inline-flex min-h-11 items-center rounded-xl bg-primary px-3 text-sm font-semibold text-white">บันทึกการเยี่ยม</Link>}</div></div></Card>)}</div> : <Card><p className="text-center text-slate-500">ไม่มีงานเยี่ยมในขณะนี้</p></Card>}
   </Page>;
 }
 
@@ -129,7 +129,7 @@ function ReviewCard({ review }: { review: ReviewItem }) {
 
     <div className="mt-3 border-t border-slate-100 pt-3">
       <p className="text-sm font-semibold text-slate-700">หมายเหตุการตรวจ <span className="font-normal text-slate-500">(จำเป็นเมื่อส่งคืน บันทึกไว้กับรายการนี้)</span></p>
-      <div className="mt-2 flex flex-wrap gap-2">{RETURN_REASONS.map((reason) => <button key={reason} type="button" onClick={() => setNotes((current) => (current.includes(reason) ? current : [current.trim(), reason].filter(Boolean).join('\n')))} className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm hover:bg-sky-50">{reason}</button>)}</div>
+      <div className="mt-2 flex flex-wrap gap-2">{RETURN_REASONS.map((reason) => <button key={reason} type="button" onClick={() => setNotes((current) => (current.includes(reason) ? current : [current.trim(), reason].filter(Boolean).join('\n')))} className="min-h-10 rounded-lg border border-slate-300 px-3 text-sm hover:bg-blue-50">{reason}</button>)}</div>
       <textarea aria-label="หมายเหตุการตรวจ" value={notes} onChange={(event) => setNotes(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
     </div>
     <div className="mt-3 flex flex-wrap gap-2">

@@ -14,7 +14,7 @@ External API อยู่ใต้ `/api/v1`. ทุก response JSON ใช้ 
 | POST | `/auth/google` | Public/rate limited | Verified Google ID token |
 | GET | `/auth/me` | Authenticated | Server-resolved actor only |
 | POST | `/auth/logout` | Authenticated | Revokes the session |
-| GET | `/dashboard` | Authenticated/scoped | Counts |
+| GET | `/dashboard` | Authenticated/scoped | Counts and the five oldest open visits (`followUpVisits`) |
 | GET | `/patients` | `patients:read` | `{items, hasMore}`; CG receives assigned projection only |
 | GET | `/visits` | `patients:read` | `{items, hasMore}`; CG sees own assignments |
 | GET | `/alerts` | `patients:read` | `{items, hasMore}`; empty for CG |

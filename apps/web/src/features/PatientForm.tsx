@@ -156,7 +156,7 @@ function PatientFields({ form, actor, cidLabel, cidHint, caregiverLocked, onErro
       <div className="md:col-span-2 grid gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
         <label className={labelClass}>ละติจูด<input {...form.register('latitude')} inputMode="decimal" className={fieldClass} placeholder="เช่น 16.432100"/><FieldError message={errors.latitude?.message}/></label>
         <label className={labelClass}>ลองจิจูด<input {...form.register('longitude')} inputMode="decimal" className={fieldClass} placeholder="เช่น 102.823600"/><FieldError message={errors.longitude?.message}/></label>
-        <button type="button" onClick={locate} disabled={locating} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-primary hover:bg-sky-50 disabled:opacity-60"><LocateFixed aria-hidden size={18}/>{locating ? 'กำลังหาตำแหน่ง…' : 'ใช้ตำแหน่งปัจจุบัน'}</button>
+        <button type="button" onClick={locate} disabled={locating} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-primary hover:bg-blue-50 disabled:opacity-60"><LocateFixed aria-hidden size={18}/>{locating ? 'กำลังหาตำแหน่ง…' : 'ใช้ตำแหน่งปัจจุบัน'}</button>
         <p className="text-sm text-slate-500 sm:col-span-3">กดเมื่ออยู่ที่บ้านผู้รับบริการ {mapsUrl && <a href={mapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-primary underline"><MapPin aria-hidden size={14}/>ดูบนแผนที่</a>}</p>
       </div>
     </Section>
@@ -173,7 +173,7 @@ function PatientFields({ form, actor, cidLabel, cidHint, caregiverLocked, onErro
         <label className={labelClass}>โรคประจำตัว <Optional/><input {...form.register('diseases')} className={fieldClass} placeholder="กดเลือกด้านล่าง หรือพิมพ์ คั่นด้วยจุลภาค (,)"/></label>
         <div className="mt-2 flex flex-wrap gap-2">{COMMON_DISEASES.map((name) => {
           const chosen = chosenDiseases.includes(name);
-          return <button key={name} type="button" aria-pressed={chosen} onClick={() => toggleDisease(name)} className={`min-h-10 rounded-lg border px-3 text-sm ${chosen ? 'border-primary bg-sky-50 font-semibold text-primary' : 'border-slate-300 hover:bg-sky-50'}`}>{chosen ? '✓ ' : ''}{name}</button>;
+          return <button key={name} type="button" aria-pressed={chosen} onClick={() => toggleDisease(name)} className={`min-h-10 rounded-lg border px-3 text-sm ${chosen ? 'border-primary bg-blue-50 font-semibold text-primary' : 'border-slate-300 hover:bg-blue-50'}`}>{chosen ? '✓ ' : ''}{name}</button>;
         })}</div>
       </div>
     </Section>
@@ -297,7 +297,7 @@ function EditForm({ actor, detail, onSaved }: { actor: Actor; detail: PatientDet
         <label className={labelClass}>สถานะ<select {...form.register('status')} className={fieldClass}>{PATIENT_STATUS_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         {(leaving || returning) && <label className={labelClass}>หมายเหตุ <Optional/><input {...form.register('statusNote')} className={fieldClass} placeholder={status === 'DECEASED' ? 'เช่น วันที่และสถานที่' : status === 'MOVED' ? 'เช่น ย้ายไปอยู่กับบุตรที่…' : 'เหตุผล'}/></label>}
         {leaving && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 md:col-span-2">เมื่อบันทึก ระบบจะปิดช่วงการดูแล ยกเลิกการมอบหมาย CG และยกเลิกนัดเยี่ยมที่ยังไม่ถึงของรายนี้ ประวัติการเยี่ยมเดิมยังอยู่ครบ</p>}
-        {returning && <p role="note" className="rounded-xl bg-sky-50 p-3 text-sm text-sky-900 md:col-span-2">เมื่อบันทึก ระบบจะเปิดช่วงการดูแลใหม่ ประเมิน ADL และมอบหมาย CG ได้อีกครั้ง</p>}
+        {returning && <p role="note" className="rounded-xl bg-blue-50 p-3 text-sm text-blue-900 md:col-span-2">เมื่อบันทึก ระบบจะเปิดช่วงการดูแลใหม่ ประเมิน ADL และมอบหมาย CG ได้อีกครั้ง</p>}
       </Section>
 
       <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">

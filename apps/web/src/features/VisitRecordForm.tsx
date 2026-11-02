@@ -83,7 +83,7 @@ function Result({ label, value, tone = 'neutral' }: { label: string; value: stri
 }
 
 function YesNo({ name, value, onChange, yes = 'มี', no = 'ไม่มี' }: { name: string; value: boolean | null; onChange: (value: boolean) => void; yes?: string; no?: string }) {
-  return <div className="flex gap-2">{([[false, no], [true, yes]] as const).map(([option, label]) => <label key={label} className={`flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 ${value === option ? (option ? 'border-danger bg-red-50 font-semibold text-red-800' : 'border-primary bg-sky-50 font-semibold') : 'border-slate-300'}`}>
+  return <div className="flex gap-2">{([[false, no], [true, yes]] as const).map(([option, label]) => <label key={label} className={`flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 ${value === option ? (option ? 'border-danger bg-red-50 font-semibold text-red-800' : 'border-primary bg-blue-50 font-semibold') : 'border-slate-300'}`}>
     <input type="radio" name={name} checked={value === option} onChange={() => onChange(option)} className="h-4 w-4"/>{label}
   </label>)}</div>;
 }
@@ -91,7 +91,7 @@ function YesNo({ name, value, onChange, yes = 'มี', no = 'ไม่มี' }
 function Checklist({ items, selected, onChange }: { items: readonly string[]; selected: string[]; onChange: (next: string[]) => void }) {
   return <div className="grid gap-2 md:grid-cols-2">{items.map((item) => {
     const checked = selected.includes(item);
-    return <label key={item} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${checked ? 'border-primary bg-sky-50' : 'border-slate-200'}`}>
+    return <label key={item} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${checked ? 'border-primary bg-blue-50' : 'border-slate-200'}`}>
       <input type="checkbox" checked={checked} onChange={() => onChange(checked ? selected.filter((value) => value !== item) : [...selected, item])} className="mt-0.5 h-5 w-5"/><span>{item}</span>
     </label>;
   })}</div>;
@@ -244,7 +244,7 @@ export function VisitRecordForm() {
     if (!first) return;
     setTimeout(() => document.querySelector(`[data-field="${first}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
     const names = [...new Set(Object.keys(found).map((field) => FIELD_LABELS[field] ?? field))];
-    void Swal.fire({ icon: 'warning', title: 'ข้อมูลยังไม่ครบหรือไม่ถูกต้อง', html: `กรุณาตรวจสอบ: <b>${names.slice(0, 8).join(', ')}${names.length > 8 ? ' และอื่น ๆ' : ''}</b>`, confirmButtonText: 'ตกลง', confirmButtonColor: '#0284C7' });
+    void Swal.fire({ icon: 'warning', title: 'ข้อมูลยังไม่ครบหรือไม่ถูกต้อง', html: `กรุณาตรวจสอบ: <b>${names.slice(0, 8).join(', ')}${names.length > 8 ? ' และอื่น ๆ' : ''}</b>`, confirmButtonText: 'ตกลง', confirmButtonColor: '#2563EB' });
   };
 
   const errorsIn = (found: Record<string, string>, index: number) => Object.fromEntries(Object.entries(found).filter(([field]) => stepOf(field) === index));
@@ -292,7 +292,7 @@ export function VisitRecordForm() {
       const image = await compressImage(file);
       setImages((current) => ({ ...current, [kind]: { image, progress: 0 } }));
     } catch (error) {
-      void Swal.fire({ icon: 'error', title: 'ใช้ภาพนี้ไม่ได้', text: error instanceof Error ? error.message : 'ลองเลือกภาพอื่น', confirmButtonColor: '#0284C7' });
+      void Swal.fire({ icon: 'error', title: 'ใช้ภาพนี้ไม่ได้', text: error instanceof Error ? error.message : 'ลองเลือกภาพอื่น', confirmButtonColor: '#2563EB' });
     }
   };
 
@@ -314,7 +314,7 @@ export function VisitRecordForm() {
     if (!validate()) return;
     const confirmed = await Swal.fire({
       icon: 'question', title: 'ส่งบันทึกการเยี่ยม?', text: 'เมื่อส่งแล้วจะแก้ไขไม่ได้ จนกว่า CM จะส่งคืน', showCancelButton: true,
-      confirmButtonText: 'ส่งบันทึก', cancelButtonText: 'ตรวจทานอีกครั้ง', confirmButtonColor: '#0284C7', reverseButtons: true
+      confirmButtonText: 'ส่งบันทึก', cancelButtonText: 'ตรวจทานอีกครั้ง', confirmButtonColor: '#2563EB', reverseButtons: true
     });
     if (!confirmed.isConfirmed) return;
     setBusy(true);
@@ -323,10 +323,10 @@ export function VisitRecordForm() {
       const ids = await uploadImages();
       const result = await post<{ visitNumber: number }>('/visit-records', { ...payload, olderImageId: ids.OLDER, serviceImageId: ids.SERVICE, signatureImageId: ids.SIGNATURE });
       await Promise.all(['visits', 'dashboard', 'reviews', 'alerts'].map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
-      await Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: `บันทึกการเยี่ยมครั้งที่ ${result.visitNumber} แล้ว รอ CM ตรวจทาน`, confirmButtonText: 'กลับไปหน้างานเยี่ยม', confirmButtonColor: '#0284C7' });
+      await Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: `บันทึกการเยี่ยมครั้งที่ ${result.visitNumber} แล้ว รอ CM ตรวจทาน`, confirmButtonText: 'กลับไปหน้างานเยี่ยม', confirmButtonColor: '#2563EB' });
       navigate('/visits');
     } catch (error) {
-      await Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: `${error instanceof Error ? error.message : 'เกิดข้อผิดพลาด'} — ภาพที่อัปโหลดแล้วจะไม่ต้องอัปโหลดซ้ำ กดส่งอีกครั้งได้`, confirmButtonText: 'ตกลง', confirmButtonColor: '#0284C7' });
+      await Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: `${error instanceof Error ? error.message : 'เกิดข้อผิดพลาด'} — ภาพที่อัปโหลดแล้วจะไม่ต้องอัปโหลดซ้ำ กดส่งอีกครั้งได้`, confirmButtonText: 'ตกลง', confirmButtonColor: '#2563EB' });
     } finally {
       setBusy(false);
     }
@@ -340,7 +340,7 @@ export function VisitRecordForm() {
   return <div className="mx-auto max-w-4xl space-y-4 pb-32 md:pb-24">
     <div><h2 className="text-2xl font-bold">บันทึกการเยี่ยมบ้าน</h2><p className="text-slate-600">กรอกทีละขั้นตอน ช่องที่มี * ต้องกรอก</p></div>
 
-    <Card className="border-sky-200 bg-sky-50">
+    <Card className="border-blue-200 bg-blue-50">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="col-span-2"><p className="text-sm text-slate-600">ผู้รับบริการ</p><p className="text-xl font-bold">{info.patientName}</p><p className="text-sm text-slate-600">{info.visitType || 'เยี่ยมตาม Care Plan'}</p></div>
         <Result label="ครั้งที่เยี่ยม" value={`ครั้งที่ ${info.visitNumber}`} tone="success"/>
@@ -390,13 +390,13 @@ export function VisitRecordForm() {
       <Section number={3} title="การประเมิน ADL (Barthel 10 ข้อ)" hint="เลือกระดับที่ผู้สูงอายุทำได้จริงในปัจจุบัน">
         <div className="space-y-3" data-field="adl">{ADL_ITEMS.map(({ key, title, hint, levels }) => <fieldset key={key} className="rounded-xl border border-slate-200 p-3">
           <legend className="px-1 font-semibold">{title}{hint && <span className="ml-1 text-sm font-normal text-slate-500">({hint})</span>}</legend>
-          <div className="space-y-2">{levels.map((text, score) => <label key={score} className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border p-2 ${form.adl[key] === score ? 'border-primary bg-sky-50' : 'border-slate-200'}`}>
+          <div className="space-y-2">{levels.map((text, score) => <label key={score} className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border p-2 ${form.adl[key] === score ? 'border-primary bg-blue-50' : 'border-slate-200'}`}>
             <input type="radio" name={`adl-${key}`} checked={form.adl[key] === score} onChange={() => set('adl', { ...form.adl, [key]: score })} className="mt-1 h-5 w-5"/>
             <span className="flex-1">{text}</span><span className="whitespace-nowrap font-bold text-primary">{score} คะแนน</span>
           </label>)}</div>
         </fieldset>)}</div>
         <FieldError message={e.adl}/>
-        <div className="sticky bottom-20 mt-3 flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 shadow-sm md:bottom-4"><span className="font-bold">คะแนน ADL รวม <span className="text-sm font-normal text-slate-600">(ตอบแล้ว {ADL_ITEMS.filter(({ key }) => typeof form.adl[key] === 'number').length}/10)</span></span><span className="text-2xl font-bold text-primary">{adlTotal ?? '–'}/20</span></div>
+        <div className="sticky bottom-20 mt-3 flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 shadow-sm md:bottom-4"><span className="font-bold">คะแนน ADL รวม <span className="text-sm font-normal text-slate-600">(ตอบแล้ว {ADL_ITEMS.filter(({ key }) => typeof form.adl[key] === 'number').length}/10)</span></span><span className="text-2xl font-bold text-primary">{adlTotal ?? '–'}/20</span></div>
       </Section>
 
     </>}
@@ -410,7 +410,7 @@ export function VisitRecordForm() {
           <p className="font-bold">แบบประเมินโรคซึมเศร้า 9 คำถาม (9Q)</p>
           <p className="text-sm text-slate-600">ในช่วง 2 สัปดาห์ที่ผ่านมารวมทั้งวันนี้ ท่านมีอาการเหล่านี้บ่อยแค่ไหน</p>
           <div className="mt-3 space-y-3">{Q9_QUESTIONS.map((question, index) => <div key={question}><p className="mb-1">{index + 1}. {question}</p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{Q9_FREQUENCIES.map((label, score) => <label key={label} className={`flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border px-2 text-sm ${form.q9[index] === score ? 'border-primary bg-sky-50 font-semibold' : 'border-slate-300'}`}>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{Q9_FREQUENCIES.map((label, score) => <label key={label} className={`flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border px-2 text-sm ${form.q9[index] === score ? 'border-primary bg-blue-50 font-semibold' : 'border-slate-300'}`}>
               <input type="radio" name={`q9-${index}`} checked={form.q9[index] === score} onChange={() => setAt('q9', index, score)} className="h-4 w-4"/>{label} ({score})
             </label>)}</div></div>)}</div>
           <FieldError message={e.q9}/>
@@ -476,7 +476,7 @@ export function VisitRecordForm() {
       <div className="mx-auto flex max-w-4xl gap-3">
         <button type="button" onClick={back} disabled={step === 0 || busy} className="min-h-12 flex-1 rounded-xl border border-slate-300 font-semibold disabled:opacity-40">ย้อนกลับ</button>
         {step < STEPS.length - 1
-          ? <button type="button" onClick={next} className="min-h-12 flex-[2] rounded-xl bg-primary px-2 font-bold text-white hover:bg-sky-700">ถัดไป<span className="hidden sm:inline">: {STEPS[step + 1]!.title}</span></button>
+          ? <button type="button" onClick={next} className="min-h-12 flex-[2] rounded-xl bg-primary px-2 font-bold text-white hover:bg-blue-700">ถัดไป<span className="hidden sm:inline">: {STEPS[step + 1]!.title}</span></button>
           : <button type="button" onClick={submit} disabled={busy} className="min-h-12 flex-[2] rounded-xl bg-success font-bold text-white disabled:opacity-60">{busy ? 'กำลังส่ง…' : 'ส่งบันทึกการเยี่ยม'}</button>}
       </div>
     </nav>

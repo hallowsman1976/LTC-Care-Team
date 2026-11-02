@@ -83,7 +83,7 @@ function PhotoPicker({ photo, currentUrl, onPick, onRemove }: { photo: PreparedI
     <div>
       <p className={labelClass}>รูปภาพประจำตัว <span className="font-normal text-slate-500">(ไม่บังคับ)</span></p>
       <div className="mt-1 flex flex-wrap gap-2">
-        <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-primary hover:bg-sky-50"><Camera aria-hidden size={18}/>{shown ? 'เปลี่ยนรูป' : 'ถ่าย/เลือกรูป'}
+        <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-primary hover:bg-blue-50"><Camera aria-hidden size={18}/>{shown ? 'เปลี่ยนรูป' : 'ถ่าย/เลือกรูป'}
           <input type="file" accept="image/*" className="sr-only" onChange={(event) => { void choose(event.target.files?.[0]); event.target.value = ''; }}/></label>
         {photo && <button type="button" onClick={() => onPick(null)} className="min-h-11 rounded-xl px-3 text-sm text-slate-600 hover:bg-slate-100">ยกเลิกรูปที่เลือก</button>}
         {!photo && currentUrl && onRemove && <button type="button" onClick={onRemove} className="min-h-11 rounded-xl px-3 text-sm text-danger hover:bg-red-50">ลบรูป</button>}
@@ -136,8 +136,8 @@ function ProfileFields({ form, photoPicker, cidLabel, cidHint }: { form: UseForm
           <button type="button" onClick={() => trainings.remove(index)} aria-label={`ลบหลักสูตรที่ ${index + 1}`} className="inline-flex min-h-11 items-center justify-center rounded-xl px-3 text-slate-500 hover:bg-red-50 hover:text-danger md:mt-6"><Trash2 aria-hidden size={18}/></button>
         </div>)}
         {trainings.fields.length < 10 && <div className="flex flex-wrap gap-2">
-          {COMMON_CG_COURSES.filter((course) => !chosenCourses.includes(course)).map((course) => <button key={course} type="button" onClick={() => addTraining(course)} className="min-h-10 rounded-lg border border-slate-300 px-3 text-left text-sm hover:bg-sky-50"><Plus aria-hidden size={14} className="mr-1 inline"/>{course}</button>)}
-          <button type="button" onClick={() => addTraining()} className="min-h-10 rounded-lg border border-dashed border-slate-400 px-3 text-sm font-semibold text-primary hover:bg-sky-50"><Plus aria-hidden size={14} className="mr-1 inline"/>หลักสูตรอื่น</button>
+          {COMMON_CG_COURSES.filter((course) => !chosenCourses.includes(course)).map((course) => <button key={course} type="button" onClick={() => addTraining(course)} className="min-h-10 rounded-lg border border-slate-300 px-3 text-left text-sm hover:bg-blue-50"><Plus aria-hidden size={14} className="mr-1 inline"/>{course}</button>)}
+          <button type="button" onClick={() => addTraining()} className="min-h-10 rounded-lg border border-dashed border-slate-400 px-3 text-sm font-semibold text-primary hover:bg-blue-50"><Plus aria-hidden size={14} className="mr-1 inline"/>หลักสูตรอื่น</button>
         </div>}
       </div>
     </Section>
@@ -147,7 +147,7 @@ function ProfileFields({ form, photoPicker, cidLabel, cidHint }: { form: UseForm
 function PasswordInput({ field, onRandom, error, label }: { field: UseFormRegisterReturn; onRandom: (password: string) => void; error?: string | undefined; label: ReactNode }) {
   return <label className={labelClass}>{label}
     <div className="flex gap-2"><input {...field} className={fieldClass} autoComplete="new-password"/>
-      <button type="button" onClick={() => onRandom(randomPassword())} className="mt-1 inline-flex shrink-0 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-primary hover:bg-sky-50"><KeyRound aria-hidden size={16}/>สุ่ม</button>
+      <button type="button" onClick={() => onRandom(randomPassword())} className="mt-1 inline-flex shrink-0 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-primary hover:bg-blue-50"><KeyRound aria-hidden size={16}/>สุ่ม</button>
     </div>
     <FieldError message={error}/>
   </label>;
@@ -207,7 +207,7 @@ export function Caregivers() {
           <p className="text-sm text-slate-600">{[caregiver.username || caregiver.userId, caregiver.phone].filter(Boolean).join(' · ')}</p>
           {(caregiver.organizationName || caregiver.education) && <p className="text-sm text-slate-600">{[caregiver.organizationName, educationName(caregiver.education)].filter(Boolean).join(' · ')}</p>}
           <p className="mt-1 text-sm">ดูแล {caregiver.activePatients} ราย{caregiver.trainingCount ? ` · อบรม ${caregiver.trainingCount} หลักสูตร (ล่าสุด: ${caregiver.latestTraining})` : ' · ยังไม่มีข้อมูลการอบรม'}</p>
-          <Link to={`/settings/caregivers/${encodeURIComponent(caregiver.userId)}`} className="mt-2 inline-flex min-h-10 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-primary hover:bg-sky-50"><Pencil aria-hidden size={15}/>แก้ไขข้อมูล</Link>
+          <Link to={`/settings/caregivers/${encodeURIComponent(caregiver.userId)}`} className="mt-2 inline-flex min-h-10 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-primary hover:bg-blue-50"><Pencil aria-hidden size={15}/>แก้ไขข้อมูล</Link>
         </div>
       </div></Card>)}
     </div> : <Card><p className="text-center text-slate-500">ยังไม่มี CG</p></Card>}

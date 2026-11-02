@@ -65,7 +65,7 @@ export function BudgetPlans({ actor }: { actor: Actor }) {
         <h3 className="text-lg font-bold">ปีงบประมาณ {fiscalYear}</h3>
         <ul className="mt-2 divide-y divide-slate-100">
           {(plans.data?.items ?? []).filter((plan) => plan.fiscalYear === fiscalYear).map((plan) => <li key={plan.planId}>
-            <Link to={`/budget/${plan.planId}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl px-2 py-3 hover:bg-sky-50">
+            <Link to={`/budget/${plan.planId}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl px-2 py-3 hover:bg-blue-50">
               <span><span className="font-semibold">ฉบับที่ {plan.version}</span><span className="ml-2 text-sm text-slate-600">{plan.lineCount} ราย · แก้ไขล่าสุด {thaiDateTime(plan.updatedAt)}</span>
                 {plan.approvedAt && <span className="block text-sm text-slate-600">อนุมัติ {thaiDateTime(plan.approvedAt)} โดย {plan.approvedByName || '–'}</span>}</span>
               <Status tone={statusTone(plan.status)}>{BUDGET_STATUS_LABELS[plan.status]}</Status>
@@ -186,7 +186,7 @@ function SettingsForm({ settings, editable, onChange }: { settings: BudgetSettin
 }
 
 function Tab({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return <button type="button" role="tab" aria-selected={active} onClick={onClick} className={`min-h-11 rounded-xl px-4 text-sm font-semibold ${active ? 'bg-primary text-white' : 'border border-slate-300 bg-white text-slate-700 hover:bg-sky-50'}`}>{children}</button>;
+  return <button type="button" role="tab" aria-selected={active} onClick={onClick} className={`min-h-11 rounded-xl px-4 text-sm font-semibold ${active ? 'bg-primary text-white' : 'border border-slate-300 bg-white text-slate-700 hover:bg-blue-50'}`}>{children}</button>;
 }
 
 type LineFilter = 'all' | 'over' | 'unclassified' | 'changed' | 'excluded';
@@ -297,7 +297,7 @@ export function BudgetPlanPage({ actor }: { actor: Actor }) {
       {data.revisionReason && <p className="text-sm text-slate-600">เหตุผลที่ปรับปรุง: {data.revisionReason}</p>}
     </div>
 
-    <Card className={summary.overBudget ? 'border-red-200 bg-red-50' : 'border-sky-200 bg-sky-50'}>
+    <Card className={summary.overBudget ? 'border-red-200 bg-red-50' : 'border-blue-200 bg-blue-50'}>
       <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Figure label={current.approvedCeiling === null ? 'วงเงินตามกลุ่ม' : 'วงเงินที่กองทุนอนุมัติ'} value={`${bahtText(summary.ceiling)} บาท`} strong/>
         <Figure label="ค่าใช้จ่ายตามแผน" value={`${bahtText(summary.spent)} บาท`} strong/>
@@ -320,10 +320,10 @@ export function BudgetPlanPage({ actor }: { actor: Actor }) {
     {tab === 'lines' && <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <label className="relative min-w-60 flex-1"><span className="sr-only">ค้นหาผู้ป่วย</span><Search aria-hidden className="absolute left-3 top-3 text-slate-400" size={20}/><input value={search} onChange={(event) => setSearch(event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-3" placeholder="ค้นหาชื่อ ที่อยู่ หรือ CG"/></label>
-        {editable && <button type="button" onClick={sync} disabled={dirty || Boolean(busy)} title={dirty ? 'บันทึกก่อนดึงรายชื่อใหม่' : undefined} className="inline-flex min-h-11 items-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-sky-50 disabled:opacity-60"><RefreshCw aria-hidden className="mr-2" size={16}/>{busy === 'sync' ? 'กำลังดึง…' : 'ดึงรายชื่อใหม่'}</button>}
+        {editable && <button type="button" onClick={sync} disabled={dirty || Boolean(busy)} title={dirty ? 'บันทึกก่อนดึงรายชื่อใหม่' : undefined} className="inline-flex min-h-11 items-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-blue-50 disabled:opacity-60"><RefreshCw aria-hidden className="mr-2" size={16}/>{busy === 'sync' ? 'กำลังดึง…' : 'ดึงรายชื่อใหม่'}</button>}
       </div>
       <div role="group" aria-label="กรองรายชื่อ" className="flex flex-wrap gap-2">
-        {filters.filter(([value]) => value === 'all' || counts[value] > 0).map(([value, label]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={`min-h-11 rounded-xl border px-3 text-sm font-semibold ${filter === value ? 'border-primary bg-primary text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-sky-50'}`}>{label} {counts[value]}</button>)}
+        {filters.filter(([value]) => value === 'all' || counts[value] > 0).map(([value, label]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={`min-h-11 rounded-xl border px-3 text-sm font-semibold ${filter === value ? 'border-primary bg-primary text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-blue-50'}`}>{label} {counts[value]}</button>)}
       </div>
       {visible.length === 0 ? <Card><p className="text-center text-slate-500">ไม่พบรายชื่อ</p></Card>
         : visible.map((line) => <LineCard key={line.lineId} line={line} settings={current} editable={editable} onChange={(changes) => changeLine(line, changes)}/>)}
@@ -346,7 +346,7 @@ export function BudgetPlanPage({ actor }: { actor: Actor }) {
         <p className="text-sm text-slate-600">{dirty ? 'มีการแก้ไขที่ยังไม่บันทึก หน้าพิมพ์จะแสดงข้อมูลที่บันทึกแล้วเท่านั้น' : 'ไฟล์ Excel มีสูตรรวมยอด แก้ตัวเลขในไฟล์แล้วยอดรวมจะคำนวณใหม่'}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button type="button" onClick={exportXlsx}><Download aria-hidden className="mr-2" size={18}/>ดาวน์โหลด Excel (.xlsx)</Button>
-          <a href={appHref(`/budget/${planId}/print`)} target="_blank" rel="noopener" className="inline-flex min-h-12 items-center rounded-xl border border-slate-300 bg-white px-4 font-semibold text-slate-700 hover:bg-sky-50"><Printer aria-hidden className="mr-2" size={18}/>หน้าพิมพ์ A4 / PDF</a>
+          <a href={appHref(`/budget/${planId}/print`)} target="_blank" rel="noopener" className="inline-flex min-h-12 items-center rounded-xl border border-slate-300 bg-white px-4 font-semibold text-slate-700 hover:bg-blue-50"><Printer aria-hidden className="mr-2" size={18}/>หน้าพิมพ์ A4 / PDF</a>
         </div>
       </Card>
       {editable && <Card>

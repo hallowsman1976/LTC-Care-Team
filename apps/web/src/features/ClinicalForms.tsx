@@ -84,7 +84,7 @@ interface PatientName { patientId: string; fullName: string; localCode?: string;
 function PatientBanner({ patientId }: { patientId: string }) {
   const query = useQuery({ queryKey: ['patients', 'names'], queryFn: () => api<Page<PatientName>>('/patients') });
   const patient = query.data?.items.find((item) => item.patientId === patientId);
-  return <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-3">
+  return <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3">
     <p className="text-sm text-slate-600">ผู้รับบริการ</p>
     <p className="text-lg font-bold">{patient ? patient.fullName : query.isLoading ? 'กำลังโหลด…' : 'ไม่พบชื่อในรายการ'}</p>
     <p className="text-sm text-slate-600">{[patient?.localCode, patient?.hn ? `HN ${patient.hn}` : '', patientId].filter(Boolean).join(' · ')}</p>
@@ -105,13 +105,13 @@ export function AdlForm() {
     <form onSubmit={form.handleSubmit((items) => attempt(setOutcome, () => post('/adl-assessments', { patientId, assessmentDate: todayInBangkok(), items }), 'ส่งแบบประเมินแล้ว'))} className="space-y-4">
       {ADL_ITEMS.map(({ key, title, hint, levels }) => <fieldset key={key} className="rounded-xl border border-slate-200 p-3">
         <legend className="px-1 font-bold">{title}{hint && <span className="ml-2 text-sm font-normal text-slate-500">({hint})</span>}</legend>
-        <div className="mt-1 space-y-2">{levels.map((text, score) => <label key={score} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${values[key] === score ? 'border-primary bg-sky-50' : 'border-slate-200'}`}>
+        <div className="mt-1 space-y-2">{levels.map((text, score) => <label key={score} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${values[key] === score ? 'border-primary bg-blue-50' : 'border-slate-200'}`}>
           <input type="radio" name={key} checked={values[key] === score} onChange={() => form.setValue(key, score as never, { shouldValidate: true })} className="mt-1 h-5 w-5"/>
           <span className="flex-1">{text}</span><span className="whitespace-nowrap font-bold text-primary">{score} คะแนน</span>
         </label>)}</div>
         {errors[key] && <p className="mt-1 text-xs text-danger">กรุณาเลือกระดับของข้อนี้</p>}
       </fieldset>)}
-      <div className="sticky bottom-20 flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 shadow-sm md:bottom-4"><span className="font-bold">คะแนนรวม <span className="text-sm font-normal text-slate-600">(ตอบแล้ว {answered}/{ADL_ITEMS.length} ข้อ)</span></span><span aria-live="polite" className="text-2xl font-bold text-primary">{total ?? '–'}/20</span></div>
+      <div className="sticky bottom-20 flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 shadow-sm md:bottom-4"><span className="font-bold">คะแนนรวม <span className="text-sm font-normal text-slate-600">(ตอบแล้ว {answered}/{ADL_ITEMS.length} ข้อ)</span></span><span aria-live="polite" className="text-2xl font-bold text-primary">{total ?? '–'}/20</span></div>
       <Button type="submit" disabled={form.formState.isSubmitting}>อนุมัติแบบประเมิน</Button><OutcomeMessage outcome={outcome}/>
     </form>
   </FormPage>;
@@ -160,7 +160,7 @@ const SUGGESTION_REASONS: Record<string, string> = {
 };
 
 export function ChoiceCards<T extends string | number>({ name, choices, selected, highlight, onSelect }: { name: string; choices: Array<Choice<T>>; selected: T | undefined; highlight?: T | null; onSelect: (value: T) => void }) {
-  return <div className="mt-1 space-y-2">{choices.map((choice) => <label key={String(choice.value)} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${selected === choice.value ? 'border-primary bg-sky-50' : 'border-slate-200'}`}>
+  return <div className="mt-1 space-y-2">{choices.map((choice) => <label key={String(choice.value)} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${selected === choice.value ? 'border-primary bg-blue-50' : 'border-slate-200'}`}>
     <input type="radio" name={name} checked={selected === choice.value} onChange={() => onSelect(choice.value)} className="mt-1 h-5 w-5"/>
     <span className="flex-1"><span className="font-semibold">{choice.label}</span>{highlight === choice.value && <span className="ml-2"><Status tone="warning">ระบบแนะนำ</Status></span>}<span className="block text-sm text-slate-600">{choice.detail}</span></span>
   </label>)}</div>;
@@ -247,7 +247,7 @@ function ActivatePlan({ plan }: { plan: DraftPlan }) {
     await attempt(setOutcome, () => post('/care-plans/activate', { carePlanId: plan.carePlanId, recordVersion: Number(plan.recordVersion), approvalRationale: rationale.trim() }), 'อนุมัติแผนแล้ว ตารางเยี่ยมจะถูกสร้างเมื่อรันตัวจัดตาราง');
     setBusy(false);
   };
-  return <div className="mt-4 space-y-3 rounded-xl border border-sky-200 bg-sky-50 p-4 md:col-span-2">
+  return <div className="mt-4 space-y-3 rounded-xl border border-blue-200 bg-blue-50 p-4 md:col-span-2">
     <p className="font-bold">ร่างแผนพร้อมอนุมัติ</p>
     <p className="text-sm text-slate-600">ต้องมีผลจัดกลุ่มที่ยืนยันแล้วและผู้ดูแลที่ได้รับมอบหมาย หากอนุมัติแผนที่ตนเองสร้าง ต้องระบุเหตุผลอย่างน้อย 10 ตัวอักษร</p>
     <label className={labelClass}>เหตุผลการอนุมัติ<textarea value={rationale} onChange={(event) => setRationale(event.target.value)} className={fieldClass}/></label>
@@ -278,7 +278,7 @@ export function planEndDate(from: string, months: number): string {
 }
 
 const hintClass = 'block text-xs font-normal text-slate-500';
-const chipClass = 'min-h-10 rounded-lg border border-slate-300 px-3 text-sm hover:bg-sky-50';
+const chipClass = 'min-h-10 rounded-lg border border-slate-300 px-3 text-sm hover:bg-blue-50';
 
 export function CarePlanForm() {
   const [searchParams] = useSearchParams();
@@ -312,7 +312,7 @@ export function CarePlanForm() {
 
       <fieldset className="rounded-xl border border-slate-200 p-3">
         <legend className="px-1 font-bold">2. ประเภทบริการ</legend>
-        <div className="mt-1 grid gap-2 md:grid-cols-2">{[...SERVICE_TYPES, { label: OTHER_SERVICE, detail: 'บริการที่ไม่มีในรายการ ระบุชื่อบริการเอง', example: '' }].map((item) => <label key={item.label} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${serviceChoice === item.label ? 'border-primary bg-sky-50' : 'border-slate-200'}`}>
+        <div className="mt-1 grid gap-2 md:grid-cols-2">{[...SERVICE_TYPES, { label: OTHER_SERVICE, detail: 'บริการที่ไม่มีในรายการ ระบุชื่อบริการเอง', example: '' }].map((item) => <label key={item.label} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${serviceChoice === item.label ? 'border-primary bg-blue-50' : 'border-slate-200'}`}>
           <input type="radio" name="serviceChoice" checked={serviceChoice === item.label} onChange={() => chooseService(item.label)} className="mt-1 h-5 w-5"/>
           <span><span className="font-semibold">{item.label}</span><span className="block text-sm text-slate-600">{item.detail}</span></span>
         </label>)}</div>
@@ -322,14 +322,14 @@ export function CarePlanForm() {
 
       <fieldset className="rounded-xl border border-slate-200 p-3">
         <legend className="px-1 font-bold">3. รอบการเยี่ยม</legend>
-        <div className="grid gap-2 md:grid-cols-2">{([['WEEK', 'รายสัปดาห์', 'เยี่ยมตามวันที่เลือกในทุกสัปดาห์'], ['MONTH', 'รายเดือน', 'เยี่ยมเดือนละ 1 ครั้งตามวันที่กำหนด']] as const).map(([value, label, detail]) => <label key={value} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${unit === value ? 'border-primary bg-sky-50' : 'border-slate-200'}`}>
+        <div className="grid gap-2 md:grid-cols-2">{([['WEEK', 'รายสัปดาห์', 'เยี่ยมตามวันที่เลือกในทุกสัปดาห์'], ['MONTH', 'รายเดือน', 'เยี่ยมเดือนละ 1 ครั้งตามวันที่กำหนด']] as const).map(([value, label, detail]) => <label key={value} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${unit === value ? 'border-primary bg-blue-50' : 'border-slate-200'}`}>
           <input type="radio" value={value} {...form.register('unit')} className="mt-1 h-5 w-5"/><span><span className="font-semibold">{label}</span><span className="block text-sm text-slate-600">{detail}</span></span>
         </label>)}</div>
         {unit === 'WEEK'
           ? <div className="mt-3"><p className={labelClass}>วันที่เยี่ยมในแต่ละสัปดาห์<span className={hintClass}>เลือกได้หลายวัน จำนวนวันที่เลือกคือจำนวนครั้งต่อสัปดาห์</span></p><div className="mt-2 flex flex-wrap gap-3">{weekdayLabels.map((label, index) => <label key={label} className="flex min-h-12 items-center gap-2"><input type="checkbox" value={index + 1} {...form.register('weekdays')} className="h-5 w-5"/>{label}</label>)}</div><span className="text-xs text-danger">{errors.weekdays?.message}</span></div>
           : <label className={`${labelClass} mt-3`}>วันที่ของเดือน (1–28)<span className={hintClass}>จำกัดไม่เกินวันที่ 28 เพื่อให้มีทุกเดือน</span><input type="number" min={1} max={28} {...form.register('dayOfMonth')} className={fieldClass}/><span className="text-xs text-danger">{errors.dayOfMonth?.message}</span></label>}
         <p className={`${labelClass} mt-3`}>ช่วงเวลาที่เยี่ยม<span className={hintClass}>ระบบไม่เลื่อนนัดในวันหยุดให้อัตโนมัติ</span></p>
-        <div className="mt-2 flex flex-wrap gap-2">{TIME_WINDOWS.map(([label, start, end]) => <button key={label} type="button" onClick={() => { form.setValue('windowStart', start); form.setValue('windowEnd', end, { shouldValidate: true }); }} className={`${chipClass} ${windowStart === start && windowEnd === end ? 'border-primary bg-sky-50 font-semibold' : ''}`}>{label} {start}–{end}</button>)}</div>
+        <div className="mt-2 flex flex-wrap gap-2">{TIME_WINDOWS.map(([label, start, end]) => <button key={label} type="button" onClick={() => { form.setValue('windowStart', start); form.setValue('windowEnd', end, { shouldValidate: true }); }} className={`${chipClass} ${windowStart === start && windowEnd === end ? 'border-primary bg-blue-50 font-semibold' : ''}`}>{label} {start}–{end}</button>)}</div>
         <div className="mt-2 grid gap-3 md:grid-cols-2">
           <label className={labelClass}>เวลาเริ่ม<input type="time" {...form.register('windowStart')} className={fieldClass}/></label>
           <label className={labelClass}>เวลาสิ้นสุด<input type="time" {...form.register('windowEnd')} className={fieldClass}/><span className="text-xs text-danger">{errors.windowEnd?.message}</span></label>

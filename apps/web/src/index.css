@@ -6,7 +6,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; }
 button, input, select, textarea, a { min-height: 44px; }
-:focus-visible { outline: 3px solid #0284C7; outline-offset: 2px; }
+:focus-visible { outline: 3px solid #2563EB; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
 
 .swal2-popup { font-family: inherit; border-radius: 1rem; }
@@ -18,4 +18,4 @@ button, input, select, textarea, a { min-height: 44px; }
 .flatpickr-calendar .flatpickr-monthDropdown-months,
 .flatpickr-calendar .flatpickr-be-year { height: 30px; border: 1px solid #CBD5E1; border-radius: 0.5rem; background: #fff; padding: 0 0.25rem; font: inherit; font-size: 0.95rem; font-weight: 600; color: #0F172A; cursor: pointer; }
 .flatpickr-calendar .flatpickr-monthDropdown-months { margin: 0; appearance: auto; }
-.flatpickr-day.selected, .flatpickr-day.selected:hover { background: #0284C7; border-color: #0284C7; }
+.flatpickr-day.selected, .flatpickr-day.selected:hover { background: #2563EB; border-color: #2563EB; }

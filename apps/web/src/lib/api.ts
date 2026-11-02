@@ -4,6 +4,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 const roleKey = 'smart-ltc-demo-role';
 export const appMode = import.meta.env.VITE_APP_MODE === 'PILOT' ? 'PILOT' : 'DEMO';
 export const isDemoMode = appMode === 'DEMO';
+export const facilityName = isDemoMode ? 'รพ.สต. ตัวอย่าง' : (import.meta.env.VITE_FACILITY_NAME || 'หน่วยบริการ');
 /** The role switcher only works against `wrangler dev` with DEMO_IMPERSONATION; deployed demos sign in. */
 export const isLocalDemo = isDemoMode && import.meta.env.DEV;
 /** GitHub Pages build: no backend, answers come from the in-browser synthetic fixtures. */

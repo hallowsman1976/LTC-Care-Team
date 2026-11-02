@@ -20,7 +20,7 @@ function ageOf(patient: PatientSummary): number | null {
   return age;
 }
 
-const actionClass = 'inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-primary hover:bg-sky-50';
+const actionClass = 'inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-primary hover:bg-blue-50';
 
 /**
  * Editing, then (for a CM) the clinical workflow in order: ADL, then classification, then a care

@@ -88,7 +88,14 @@ export interface ReadRoute {
 }
 
 export const READ_ROUTES: Record<string, ReadRoute> = {
-  '/dashboard': { action: 'dashboard.summary', demo: () => ({ dueToday: 6, overdue: 2, reviewQueue: 3, highRiskAlerts: 1, drafts: 1 }) },
+  '/dashboard': { action: 'dashboard.summary', demo: () => ({
+    dueToday: 6, overdue: 2, reviewQueue: 3, highRiskAlerts: 1, drafts: 1,
+    followUpVisits: [
+      { visitId: 'vs-demo-001', episodeId: 'ep-demo-001', visitDateTime: '2026-10-13T09:00:00+07:00', expectedEndTime: '2026-10-13T10:00:00+07:00', visitType: 'เยี่ยมบ้านตาม Care Plan', status: 'ASSIGNED', patientName: 'นายตัวอย่าง หนึ่ง' },
+      { visitId: 'vs-demo-002', episodeId: 'ep-demo-002', visitDateTime: '2026-10-14T09:00:00+07:00', expectedEndTime: '2026-10-14T10:00:00+07:00', visitType: 'เยี่ยมบ้านตาม Care Plan', status: 'SUBMITTED', patientName: 'นางตัวอย่าง สอง' },
+      { visitId: 'vs-demo-003', episodeId: 'ep-demo-003', visitDateTime: '2026-10-15T09:00:00+07:00', expectedEndTime: '2026-10-15T10:00:00+07:00', visitType: 'เยี่ยมบ้านตาม Care Plan', status: 'RETURNED', patientName: 'นายข้อมูลจำลอง สาม' }
+    ]
+  }) },
   '/patients': { action: 'patient.list', payload: { limit: 50 }, demo: (actor) => page(actor.role === 'CG' ? demoPatients.slice(0, 1) : demoPatients) },
   '/visits': {
     action: 'visit.list',

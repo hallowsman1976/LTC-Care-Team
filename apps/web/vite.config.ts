@@ -17,7 +17,7 @@ export default defineConfig({
         name: 'Smart LTC Care',
         short_name: 'Smart LTC',
         description: 'ระบบสนับสนุนการจัดการดูแลระยะยาวของหน่วยบริการ',
-        theme_color: '#0284C7',
+        theme_color: '#2563EB',
         background_color: '#F8FAFC',
         display: 'standalone',
         lang: 'th',

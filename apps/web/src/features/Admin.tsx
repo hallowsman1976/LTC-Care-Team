@@ -47,7 +47,7 @@ function MfaReset({ user }: { user: UserRow }) {
   };
   if (state === 'done') return <p role="status" className="mt-2 text-sm text-success">รีเซ็ตแล้ว ผู้ใช้ต้องตั้งค่าแอปใหม่เมื่อเข้าสู่ระบบ</p>;
   return <div className="mt-2">
-    <button type="button" onClick={reset} disabled={state === 'busy'} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-sky-50">รีเซ็ตแอปยืนยันตัวตน</button>
+    <button type="button" onClick={reset} disabled={state === 'busy'} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-blue-50">รีเซ็ตแอปยืนยันตัวตน</button>
     {error && <p role="alert" className="mt-1 text-sm text-danger">{error}</p>}
   </div>;
 }
@@ -62,7 +62,7 @@ export function UserDirectory({ actor }: { actor: Actor }) {
   const visible = items.filter((user) => (!role || user.role === role) && `${user.displayName} ${user.username} ${user.userId}`.toLowerCase().includes(search.toLowerCase()));
   const countOf = (value: Role) => items.filter((user) => user.role === value).length;
   return <AdminPage title="ข้อมูลผู้ใช้งาน" description="บัญชีทั้งหมดในระบบ บทบาท ชื่อที่ใช้เข้าสู่ระบบ และสถานะ ระบบไม่แสดงรหัสผ่าน">
-    <Card className="border-sky-200 bg-sky-50">
+    <Card className="border-blue-200 bg-blue-50">
       <p className="text-sm text-slate-600">บัญชีของฉัน</p>
       <p className="text-lg font-bold">{me?.displayName || actor.userId}</p>
       <div className="mt-1 flex flex-wrap items-center gap-2 text-sm"><Status tone="neutral">{ROLE_NAMES[actor.role]}</Status><span className="text-slate-600">{me?.username || actor.userId}</span>{actor.role === 'CM' && <CredentialStatus until={actor.credentialValidUntil}/>}</div>
@@ -71,7 +71,7 @@ export function UserDirectory({ actor }: { actor: Actor }) {
       <label className="relative min-w-60 flex-1"><span className="sr-only">ค้นหาผู้ใช้งาน</span><Search aria-hidden className="absolute left-3 top-3 text-slate-400" size={20}/><input value={search} onChange={(event) => setSearch(event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-10 pr-3" placeholder="ค้นหาชื่อหรือชื่อผู้ใช้"/></label>
       <div role="group" aria-label="กรองตามบทบาท" className="flex flex-wrap gap-2">
         {([['', `ทั้งหมด ${items.length}`], ['CM', `CM ${countOf('CM')}`], ['CG', `CG ${countOf('CG')}`], ['ADMIN', `Admin ${countOf('ADMIN')}`]] as const).map(([value, label]) =>
-          <button key={value} type="button" aria-pressed={role === value} onClick={() => setRole(value)} className={`min-h-11 rounded-xl border px-3 text-sm font-semibold ${role === value ? 'border-primary bg-primary text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-sky-50'}`}>{label}</button>)}
+          <button key={value} type="button" aria-pressed={role === value} onClick={() => setRole(value)} className={`min-h-11 rounded-xl border px-3 text-sm font-semibold ${role === value ? 'border-primary bg-primary text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-blue-50'}`}>{label}</button>)}
       </div>
     </div>
     {users.isLoading ? <Loading/> : users.error ? <ErrorState message={users.error.message}/> : visible.length === 0 ? <Card><p className="text-center text-slate-500">ไม่พบผู้ใช้งาน</p></Card> : <div className="grid gap-3 md:grid-cols-2">
@@ -142,7 +142,7 @@ export function Assignments() {
       <label className="flex min-h-12 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3"><input type="checkbox" checked={onlyUnassigned} onChange={(event) => setOnlyUnassigned(event.target.checked)} className="h-5 w-5"/>เฉพาะที่ยังไม่มอบหมาย</label>
     </div>
 
-    <Card className="sticky top-28 z-30 border-sky-200 bg-sky-50">
+    <Card className="sticky top-28 z-30 border-blue-200 bg-blue-50">
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 font-semibold"><input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="h-5 w-5"/>เลือกทั้งหมดที่แสดง</label>
         <span className="text-sm text-slate-600">เลือกแล้ว {selected.size} ราย</span>
@@ -257,7 +257,7 @@ export function PatientImport() {
 
     <Card>
       <h3 className="text-lg font-bold">2. เลือกไฟล์และตรวจสอบ</h3>
-      <label className="mt-3 flex min-h-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-center hover:bg-sky-50">
+      <label className="mt-3 flex min-h-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-center hover:bg-blue-50">
         <FileUp aria-hidden className="text-primary"/><span className="font-semibold">{fileName || 'แตะเพื่อเลือกไฟล์ .csv'}</span>
         <input type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => { void choose(event.target.files?.[0]); event.target.value = ''; }}/>
       </label>

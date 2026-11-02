@@ -42,6 +42,10 @@ export const VISIT_STATUSES = [
   'RETURNED', 'MISSED', 'CANCELLED'
 ] as const;
 export type VisitStatus = (typeof VISIT_STATUSES)[number];
+export const VISIT_STATUS_LABELS: Readonly<Record<VisitStatus, string>> = {
+  PLANNED: 'ยังไม่มอบหมาย', ASSIGNED: 'มอบหมายแล้ว', IN_PROGRESS: 'กำลังเยี่ยม', SUBMITTED: 'รอตรวจ',
+  VERIFIED: 'ยืนยันผลแล้ว', RETURNED: 'ส่งคืนแก้ไข', MISSED: 'ไม่ได้เยี่ยม', CANCELLED: 'ยกเลิก'
+};
 
 
 export interface Page<T> {

@@ -31,7 +31,7 @@ export function BudgetPrint() {
     <h1 className="text-center text-sm font-bold">{planTitle(data)}</h1>
     <p className="mb-2 text-center">{planSubtitle(data.settings, data.lines)} · ฉบับที่ {data.version}</p>
     <table className="w-full border-collapse">
-      <thead className="bg-sky-50"><tr>{BUDGET_COLUMNS.map((title) => <th key={title} className={`${cell} font-semibold`}>{title}</th>)}</tr></thead>
+      <thead className="bg-blue-50"><tr>{BUDGET_COLUMNS.map((title) => <th key={title} className={`${cell} font-semibold`}>{title}</th>)}</tr></thead>
       <tbody>
         {counted.map(({ line, figures }, index) => <tr key={line.lineId} className="break-inside-avoid">
           <td className={num}>{index + 1}</td><td className={num}>{index + 1}</td><td className={cell}>{line.fullName}</td><td className={num}>{line.age ?? ''}</td>
@@ -55,7 +55,7 @@ export function BudgetPrint() {
 
     <div className="mt-4 flex flex-wrap items-start gap-8 break-inside-avoid">
       <table className="border-collapse">
-        <thead className="bg-sky-50"><tr><th className={cell}>กลุ่ม</th><th className={cell}>จำนวน (ราย)</th><th className={cell}>อัตรา/ราย/ปี</th><th className={cell}>วงเงินตามเดือนที่ดูแล</th><th className={cell}>ค่าใช้จ่ายตามแผน</th></tr></thead>
+        <thead className="bg-blue-50"><tr><th className={cell}>กลุ่ม</th><th className={cell}>จำนวน (ราย)</th><th className={cell}>อัตรา/ราย/ปี</th><th className={cell}>วงเงินตามเดือนที่ดูแล</th><th className={cell}>ค่าใช้จ่ายตามแผน</th></tr></thead>
         <tbody>{summary.byGroup.map((group) => <tr key={group.group}><td className={cell}>กลุ่ม {group.group}</td><td className={num}>{group.count}</td><td className={num}>{bahtText(group.rate)}</td><td className={num}>{bahtText(group.envelope)}</td><td className={num}>{bahtText(group.spent)}</td></tr>)}</tbody>
         <tfoot className="font-bold">
           <tr><td className={cell}>รวม</td><td className={num}>{summary.countedCount}</td><td className={cell}/><td className={num}>{bahtText(summary.envelope)}</td><td className={num}>{bahtText(summary.spent)}</td></tr>

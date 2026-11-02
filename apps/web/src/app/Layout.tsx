@@ -1,8 +1,9 @@
-import { Bell, CalendarDays, ChevronDown, ClipboardCheck, ClipboardList, FileUp, Home, IdCard, LogOut, Menu, Settings, UserCheck, UserPlus, Users, Wallet, X, type LucideIcon } from 'lucide-react';
+import { useIsFetching, useQueryClient, type Query } from '@tanstack/react-query';
+import { Bell, CalendarDays, ChevronDown, ClipboardCheck, ClipboardList, FileUp, Home, IdCard, LogOut, Menu, RefreshCw, Settings, UserCheck, UserPlus, Users, Wallet, X, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import type { Actor, Capability, Role } from '@smart-ltc/shared';
-import { appHref, appMode, canSwitchDemoRole, getDemoRole, isDemoMode, isStaticPreview, logout, setDemoRole } from '../lib/api';
+import { appHref, appMode, canSwitchDemoRole, facilityName, getDemoRole, isDemoMode, isStaticPreview, logout, setDemoRole } from '../lib/api';
 
 interface NavItem { to: string; label: string; icon: LucideIcon; capability?: Capability }
 
@@ -23,25 +24,32 @@ export const settingsNav: NavItem[] = [
   { to: '/settings/users', label: 'ข้อมูลผู้ใช้งาน', icon: IdCard, capability: 'users:manage' }
 ];
 
-export const allowedFor = (actor: Actor) => (item: NavItem) => !item.capability || actor.capabilities.includes(item.capability);
+// The budget editor rebuilds its form when the plan changes, which would discard unsaved edits.
+const refreshesOnDemand = ({ queryKey }: Query) => !(queryKey[0] === 'budget' && queryKey[1] === 'plan');
 
-const sideLink = ({ isActive }: { isActive: boolean }) => `flex items-center gap-3 rounded-xl px-3 py-3 ${isActive ? 'bg-sky-50 font-bold text-primary' : 'text-slate-700 hover:bg-slate-50'}`;
+export const allowedFor =(actor: Actor) => (item: NavItem) => !item.capability || actor.capabilities.includes(item.capability);
 
-function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: (() => void) | undefined }) {
-  return <>{items.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} onClick={onNavigate} className={sideLink}><Icon aria-hidden size={20}/>{label}</NavLink>)}</>;
+const sideLink = (dark: boolean) => ({ isActive }: { isActive: boolean }) => `flex items-center gap-3 rounded-xl px-3 py-3 ${isActive
+  ? (dark ? 'bg-primary font-bold text-white' : 'bg-blue-50 font-bold text-primary')
+  : (dark ? 'text-slate-200 hover:bg-white/10' : 'text-slate-700 hover:bg-slate-50')}`;
+
+function NavLinks({ items, dark, onNavigate }: { items: NavItem[]; dark: boolean; onNavigate?: (() => void) | undefined }) {
+  return <>{items.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} onClick={onNavigate} className={sideLink(dark)}><Icon aria-hidden size={20}/>{label}</NavLink>)}</>;
 }
 
 /** Main items, then a collapsible การตั้งค่า group (open while one of its pages is showing). */
-function SideNav({ main, settings, onNavigate }: { main: NavItem[]; settings: NavItem[]; onNavigate?: (() => void) | undefined }) {
+function SideNav({ main, settings, dark = false, onNavigate }: { main: NavItem[]; settings: NavItem[]; dark?: boolean; onNavigate?: (() => void) | undefined }) {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(pathname.startsWith('/settings'));
+  const inSettings = pathname.startsWith('/settings');
+  const groupTone = dark ? `${inSettings ? 'font-bold text-white' : 'text-slate-200'} hover:bg-white/10` : `${inSettings ? 'font-bold text-primary' : 'text-slate-700'} hover:bg-slate-50`;
   return <>
-    <NavLinks items={main} onNavigate={onNavigate}/>
+    <NavLinks items={main} dark={dark} onNavigate={onNavigate}/>
     {settings.length > 0 && <div>
-      <button type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left ${pathname.startsWith('/settings') ? 'font-bold text-primary' : 'text-slate-700'} hover:bg-slate-50`}>
+      <button type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left ${groupTone}`}>
         <Settings aria-hidden size={20}/><span className="flex-1">การตั้งค่า</span><ChevronDown aria-hidden size={18} className={`transition-transform ${open ? 'rotate-180' : ''}`}/>
       </button>
-      {open && <div className="ml-5 space-y-1 border-l border-slate-200 pl-2"><NavLinks items={settings} onNavigate={onNavigate}/></div>}
+      {open && <div className={`ml-5 space-y-1 border-l pl-2 ${dark ? 'border-white/20' : 'border-slate-200'}`}><NavLinks items={settings} dark={dark} onNavigate={onNavigate}/></div>}
     </div>}
   </>;
 }
@@ -56,26 +64,32 @@ export function Layout({ actor }: { actor: Actor }) {
   const barItems = fitsBar ? main : main.slice(0, 4);
   const switchRole = (role: Lowercase<Role>) => { setDemoRole(role); navigate(0); };
   const signOut = async () => { await logout(); window.location.assign(appHref('/')); };
+  const queryClient = useQueryClient();
+  const fetching = useIsFetching();
+  const refresh = () => { void queryClient.invalidateQueries({ predicate: refreshesOnDemand }); };
+  const today = new Date().toLocaleDateString('th-TH', { dateStyle: 'medium', timeZone: 'Asia/Bangkok' });
   return (
     <div className={`min-h-screen bg-slate-50 pb-24 md:pb-0 md:pl-64 ${isDemoMode ? 'pt-12' : ''}`}>
       {/* Only synthetic data is flagged; PILOT shows no environment banner. */}
       {isDemoMode && <div data-testid="environment-banner" className="fixed inset-x-0 top-0 z-50 flex h-12 items-center justify-center overflow-hidden bg-red-700 px-2 text-center text-xs font-bold leading-tight text-white sm:text-sm">
         {isStaticPreview ? <span>หน้าตัวอย่าง — ข้อมูลจำลอง ไม่มีการบันทึกจริง</span> : <><span className="sm:hidden">DEMO ONLY — ข้อมูลจำลอง ห้ามใช้กับผู้ป่วยจริง</span><span className="hidden sm:inline">DEMO ONLY — ข้อมูลสังเคราะห์เท่านั้น ห้ามใช้กับผู้ป่วยจริง</span></>}
       </div>}
-      <aside className={`fixed inset-y-0 left-0 hidden w-64 overflow-y-auto border-r border-slate-200 bg-white pb-6 md:block ${isDemoMode ? 'pt-16' : 'pt-4'}`}>
-        <div className="p-5"><h1 className="text-xl font-bold text-primary">Smart LTC Care</h1><p className="text-sm text-slate-500">{isDemoMode ? 'รพ.สต. ตัวอย่าง' : (import.meta.env.VITE_FACILITY_NAME || 'หน่วยบริการ')}</p></div>
+      <aside className={`fixed inset-y-0 left-0 hidden w-64 overflow-y-auto bg-navy pb-6 md:block ${isDemoMode ? 'pt-16' : 'pt-4'}`}>
+        <div className="p-5"><h1 className="text-xl font-bold text-white">Smart LTC Care</h1><p className="text-sm text-slate-300">{facilityName}</p></div>
         <nav aria-label="เมนูหลัก" className="space-y-1 px-3">
-          <SideNav main={main} settings={settings}/>
+          <SideNav main={main} settings={settings} dark/>
         </nav>
       </aside>
       <header className={`sticky ${isDemoMode ? 'top-12' : 'top-0'} z-40 flex min-h-16 items-center justify-between border-b border-slate-200 bg-white px-4 md:px-8`}>
-        <div><p className="font-bold">{actor.role === 'CM' ? 'ผู้จัดการการดูแล' : actor.role === 'CG' ? 'ผู้ดูแล' : 'ผู้ดูแลระบบ'}</p><p className="text-xs text-slate-500">Asia/Bangkok</p></div>
+        <div><p className="font-bold">{actor.role === 'CM' ? 'ผู้จัดการการดูแล' : actor.role === 'CG' ? 'ผู้ดูแล' : 'ผู้ดูแลระบบ'}</p><p className="text-xs text-slate-500">{facilityName}</p></div>
         <div className="flex items-center gap-2">
           {canSwitchDemoRole && <><label htmlFor="demo-role" className="sr-only">สลับบทบาทจำลอง</label>
           <select id="demo-role" value={getDemoRole()} onChange={(event) => switchRole(event.target.value as Lowercase<Role>)} className="rounded-lg border border-slate-300 px-2" aria-label="สลับบทบาทจำลอง">
             <option value="admin">Admin</option><option value="cm">CM</option><option value="cg">CG</option>
           </select></>}
           <span className="sr-only">{appMode}</span>
+          <span className="whitespace-nowrap rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700 sm:text-sm">{today}</span>
+          <button type="button" onClick={refresh} disabled={fetching > 0} aria-label="รีเฟรชข้อมูล" className="rounded-lg p-2 text-slate-600 disabled:opacity-60"><RefreshCw aria-hidden size={20} className={fetching > 0 ? 'animate-spin' : ''}/></button>
           <button onClick={signOut} aria-label="ออกจากระบบ" className="rounded-lg p-2 text-slate-600"><LogOut aria-hidden size={20}/></button>
         </div>
       </header>
