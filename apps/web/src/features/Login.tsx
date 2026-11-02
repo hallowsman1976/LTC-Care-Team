@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Eye, EyeOff } from 'lucide-react';
 import QRCode from 'qrcode';
 import type { Actor } from '@smart-ltc/shared';
 import { api, ApiError, appHref, isDemoMode, post } from '../lib/api';
@@ -88,11 +89,13 @@ function PasswordLogin() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [challenge, setChallenge] = useState<EnrollmentChallenge | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setBusy(true);
     setError('');
+    setShowPassword(false);
     try {
       const result = await post<Actor | EnrollmentChallenge>('/auth/password/login', { identifier: form.get('identifier'), password: form.get('password'), totpCode: form.get('totpCode') });
       if ('status' in result && result.status === 'MFA_ENROLLMENT_REQUIRED') setChallenge(result);
@@ -113,7 +116,16 @@ function PasswordLogin() {
         : 'กรอกชื่อผู้ใช้ รหัสผ่าน และรหัสยืนยัน 6 หลักจากแอป Authenticator ในโทรศัพท์ของท่าน ครั้งแรกที่เข้าสู่ระบบ ระบบจะพาตั้งค่าแอปให้ก่อน'}</p>
       <form onSubmit={submit} className="mt-6 space-y-4">
         <label className="block text-sm font-semibold text-slate-700">ชื่อผู้ใช้<input name="identifier" autoComplete="username" autoCapitalize="none" required className={fieldClass}/></label>
-        <label className="block text-sm font-semibold text-slate-700">รหัสผ่าน<input name="password" type="password" autoComplete="current-password" required minLength={12} className={fieldClass}/></label>
+        <div>
+          <label htmlFor="login-password" className="block text-sm font-semibold text-slate-700">รหัสผ่าน</label>
+          <div className="relative">
+            {/* Edge draws its own reveal icon on password inputs; hide it so only one shows. */}
+            <input id="login-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} required minLength={12} className={`${fieldClass} pr-12 [&::-ms-reveal]:hidden`}/>
+            <button type="button" onClick={() => setShowPassword((shown) => !shown)} aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'} className="absolute inset-y-0 right-0 mt-1 grid w-12 place-items-center rounded-r-xl text-slate-500 hover:text-slate-800">
+              {showPassword ? <EyeOff aria-hidden size={20}/> : <Eye aria-hidden size={20}/>}
+            </button>
+          </div>
+        </div>
         <label className="block text-sm font-semibold text-slate-700">รหัสยืนยัน 6 หลัก{isDemoMode ? ' (CM/ผู้ดูแลระบบ)' : ''}
           <span className="block text-xs font-normal text-slate-500">เว้นว่างได้ถ้ายังไม่เคยตั้งค่าแอป</span>
           <input name="totpCode" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" className={fieldClass}/></label>

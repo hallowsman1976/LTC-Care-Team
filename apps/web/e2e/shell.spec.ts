@@ -22,5 +22,12 @@ test('shows the demo sign-in form when there is no session', async ({ page }) =>
   }));
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'เข้าสู่ระบบทดลอง' })).toBeVisible();
-  await expect(page.getByLabel('รหัสผ่าน')).toBeVisible();
+  const password = page.getByLabel('รหัสผ่าน', { exact: true });
+  await expect(password).toHaveAttribute('type', 'password');
+  await password.fill('correct horse battery');
+  await page.getByRole('button', { name: 'แสดงรหัสผ่าน' }).click();
+  await expect(password).toHaveAttribute('type', 'text');
+  await expect(password).toHaveValue('correct horse battery');
+  await page.getByRole('button', { name: 'ซ่อนรหัสผ่าน' }).click();
+  await expect(password).toHaveAttribute('type', 'password');
 });
