@@ -33,6 +33,17 @@ function FormPage({ title, description, children }: { title: string; description
   return <div className="mx-auto max-w-3xl space-y-5"><div><h2 className="text-2xl font-bold">{title}</h2><p className="text-slate-600">{description}</p></div><Card>{children}</Card></div>;
 }
 
+/** Ends a patient's clinical form: confirms the result, then returns to the patient list. */
+function useFinishToPatients() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  return async (title: string, text?: string) => {
+    await queryClient.invalidateQueries({ queryKey: ['patients'] });
+    await Swal.fire({ icon: 'success', title, text, confirmButtonText: 'กลับไปหน้าผู้รับบริการ', confirmButtonColor: '#2563EB' });
+    navigate('/patients');
+  };
+}
+
 type AdlKey = keyof z.infer<typeof adlAssessmentItemsSchema>;
 
 /** Barthel ADL in the unit's own wording (transfer levels in the standard order: more help, fewer points). */
@@ -94,8 +105,7 @@ function PatientBanner({ patientId }: { patientId: string }) {
 
 export function AdlForm() {
   const { id: patientId = '' } = useParams();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const finish = useFinishToPatients();
   const [outcome, setOutcome] = useState<Outcome>(null);
   // No defaults: an unanswered item must stay visibly unanswered rather than score 0.
   const form = useForm<z.infer<typeof adlAssessmentItemsSchema>>({ resolver: zodResolver(adlAssessmentItemsSchema) });
@@ -105,9 +115,7 @@ export function AdlForm() {
   const errors = form.formState.errors;
   const submit = form.handleSubmit((items) => attempt(setOutcome, async () => {
     await post('/adl-assessments', { patientId, assessmentDate: todayInBangkok(), items });
-    await queryClient.invalidateQueries({ queryKey: ['patients'] });
-    await Swal.fire({ icon: 'success', title: 'ส่งแบบประเมินแล้ว', confirmButtonText: 'กลับไปหน้าผู้รับบริการ', confirmButtonColor: '#2563EB' });
-    navigate('/patients');
+    await finish('ส่งแบบประเมินแล้ว');
   }, 'ส่งแบบประเมินแล้ว'));
   return <FormPage title="ประเมิน Barthel ADL" description="เลือกระดับที่ผู้รับบริการทำได้จริงในปัจจุบัน ระบบจะคำนวณคะแนนใหม่ฝั่ง server">
     <PatientBanner patientId={patientId}/>
@@ -177,6 +185,7 @@ export function ChoiceCards<T extends string | number>({ name, choices, selected
 
 export function ClassificationForm() {
   const { id: patientId = '' } = useParams();
+  const finish = useFinishToPatients();
   const [outcome, setOutcome] = useState<Outcome>(null);
   // No default group: the CM chooses one deliberately after seeing the suggestion.
   const form = useForm<z.infer<typeof classificationSchema>>({ resolver: zodResolver(classificationSchema), defaultValues: { mobilityStatus: 'UNKNOWN', cognitiveStatus: 'UNKNOWN', terminalStatus: 'UNKNOWN', rationale: '' } });
@@ -191,7 +200,10 @@ export function ClassificationForm() {
   return <FormPage title="ยืนยันกลุ่ม LTC" description="ตอบ 3 ข้อตามสภาพปัจจุบัน ระบบจะแนะนำกลุ่ม แต่ CM ต้องเป็นผู้เลือกและระบุเหตุผลเสมอ">
     <PatientBanner patientId={patientId}/>
     <p className="mb-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">ต้องมีแบบประเมิน ADL ที่อนุมัติแล้วก่อน ระบบจะบันทึกคะแนน ADL ล่าสุดของผู้รับบริการไว้กับผลจัดกลุ่ม</p>
-    <form onSubmit={form.handleSubmit(({ groupNumber: confirmedGroup, rationale, ...observation }) => attempt(setOutcome, () => post('/ltc-classifications', { patientId, observation, groupNumber: confirmedGroup, rationale }), 'ยืนยันกลุ่มแล้ว'))} className="space-y-4">
+    <form onSubmit={form.handleSubmit(({ groupNumber: confirmedGroup, rationale, ...observation }) => attempt(setOutcome, async () => {
+      await post('/ltc-classifications', { patientId, observation, groupNumber: confirmedGroup, rationale });
+      await finish('ยืนยันกลุ่มแล้ว');
+    }, 'ยืนยันกลุ่มแล้ว'))} className="space-y-4">
       {(Object.keys(OBSERVATION_QUESTIONS) as Array<keyof Observation>).map((key) => {
         const question = OBSERVATION_QUESTIONS[key];
         return <fieldset key={key} className="rounded-xl border border-slate-200 p-3">
@@ -248,12 +260,16 @@ interface DraftPlan { carePlanId: string; recordVersion: number }
 
 /** Approving a draft is a separate, deliberate step: GAS checks the activation conditions. */
 function ActivatePlan({ plan }: { plan: DraftPlan }) {
+  const finish = useFinishToPatients();
   const [rationale, setRationale] = useState('');
   const [outcome, setOutcome] = useState<Outcome>(null);
   const [busy, setBusy] = useState(false);
   const activate = async () => {
     setBusy(true);
-    await attempt(setOutcome, () => post('/care-plans/activate', { carePlanId: plan.carePlanId, recordVersion: Number(plan.recordVersion), approvalRationale: rationale.trim() }), 'อนุมัติแผนแล้ว ตารางเยี่ยมจะถูกสร้างเมื่อรันตัวจัดตาราง');
+    await attempt(setOutcome, async () => {
+      await post('/care-plans/activate', { carePlanId: plan.carePlanId, recordVersion: Number(plan.recordVersion), approvalRationale: rationale.trim() });
+      await finish('อนุมัติแผนแล้ว', 'ตารางเยี่ยมจะถูกสร้างเมื่อรันตัวจัดตาราง');
+    }, 'อนุมัติแผนแล้ว ตารางเยี่ยมจะถูกสร้างเมื่อรันตัวจัดตาราง');
     setBusy(false);
   };
   return <div className="mt-4 space-y-3 rounded-xl border border-blue-200 bg-blue-50 p-4 md:col-span-2">
