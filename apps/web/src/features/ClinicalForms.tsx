@@ -1,8 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import { z } from 'zod';
 import { type Page, adlAssessmentItemsSchema, calculateAdlTotal, ltcObservationSchema, suggestLtcGroup } from '@smart-ltc/shared';
 import { api, isDemoMode, post, todayInBangkok } from '../lib/api';
@@ -93,6 +94,8 @@ function PatientBanner({ patientId }: { patientId: string }) {
 
 export function AdlForm() {
   const { id: patientId = '' } = useParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [outcome, setOutcome] = useState<Outcome>(null);
   // No defaults: an unanswered item must stay visibly unanswered rather than score 0.
   const form = useForm<z.infer<typeof adlAssessmentItemsSchema>>({ resolver: zodResolver(adlAssessmentItemsSchema) });
@@ -100,9 +103,15 @@ export function AdlForm() {
   const answered = ADL_ITEMS.filter(({ key }) => typeof values[key] === 'number').length;
   const total = adlAssessmentItemsSchema.safeParse(values).success ? calculateAdlTotal(values) : null;
   const errors = form.formState.errors;
+  const submit = form.handleSubmit((items) => attempt(setOutcome, async () => {
+    await post('/adl-assessments', { patientId, assessmentDate: todayInBangkok(), items });
+    await queryClient.invalidateQueries({ queryKey: ['patients'] });
+    await Swal.fire({ icon: 'success', title: 'ส่งแบบประเมินแล้ว', confirmButtonText: 'กลับไปหน้าผู้รับบริการ', confirmButtonColor: '#2563EB' });
+    navigate('/patients');
+  }, 'ส่งแบบประเมินแล้ว'));
   return <FormPage title="ประเมิน Barthel ADL" description="เลือกระดับที่ผู้รับบริการทำได้จริงในปัจจุบัน ระบบจะคำนวณคะแนนใหม่ฝั่ง server">
     <PatientBanner patientId={patientId}/>
-    <form onSubmit={form.handleSubmit((items) => attempt(setOutcome, () => post('/adl-assessments', { patientId, assessmentDate: todayInBangkok(), items }), 'ส่งแบบประเมินแล้ว'))} className="space-y-4">
+    <form onSubmit={submit} className="space-y-4">
       {ADL_ITEMS.map(({ key, title, hint, levels }) => <fieldset key={key} className="rounded-xl border border-slate-200 p-3">
         <legend className="px-1 font-bold">{title}{hint && <span className="ml-2 text-sm font-normal text-slate-500">({hint})</span>}</legend>
         <div className="mt-1 space-y-2">{levels.map((text, score) => <label key={score} className={`flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border p-2 ${values[key] === score ? 'border-primary bg-blue-50' : 'border-slate-200'}`}>
