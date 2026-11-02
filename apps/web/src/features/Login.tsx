@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import type { Actor } from '@smart-ltc/shared';
 import { api, ApiError, appHref, isDemoMode, post } from '../lib/api';
 import { Button, Card, ErrorState, Loading } from '../components/ui';
+import unitLogo from '../assets/unit-logo.webp';
 
 interface GoogleAccounts {
   id: {
@@ -17,6 +18,10 @@ declare global { interface Window { google?: { accounts: GoogleAccounts } } }
 
 export function Login() {
   return isDemoMode ? <PasswordLogin/> : <PilotLogin/>;
+}
+
+function UnitLogo() {
+  return <img src={unitLogo} alt="ตราโรงพยาบาลส่งเสริมสุขภาพตำบลบ้านทรายไหลแล้ง องค์การบริหารส่วนจังหวัดมุกดาหาร" width={112} height={112} className="mx-auto mb-5"/>;
 }
 
 interface Health { mode: 'DEMO' | 'PILOT'; passwordAuth: boolean; googleAuth: boolean }
@@ -66,6 +71,7 @@ function GoogleLogin() {
 
   return <main className="grid min-h-screen place-items-center bg-slate-50 p-6">
     <Card className="w-full max-w-md p-7">
+      <UnitLogo/>
       <p className="text-sm font-bold text-primary">SMART LTC CARE</p>
       <h1 className="mt-2 text-2xl font-bold">เข้าสู่ระบบหน่วยบริการ</h1>
       <p className="mt-2 text-sm text-slate-600">ใช้บัญชี Google Workspace ของหน่วยงานเท่านั้น ระบบจะไม่รับบัญชีภายนอกโดเมน</p>
@@ -109,6 +115,7 @@ function PasswordLogin() {
   if (challenge) return <TotpEnrollment challenge={challenge} onRestart={() => setChallenge(null)}/>;
   return <main className="grid min-h-screen place-items-center bg-slate-50 p-6">
     <Card className="w-full max-w-md p-7">
+      <UnitLogo/>
       {isDemoMode ? <p className="text-sm font-bold text-danger">DEMO ONLY — ข้อมูลจำลอง</p> : <p className="text-sm font-bold text-primary">SMART LTC CARE</p>}
       <h1 className="mt-2 text-2xl font-bold">{isDemoMode ? 'เข้าสู่ระบบทดลอง' : 'เข้าสู่ระบบหน่วยบริการ'}</h1>
       <p className="mt-2 text-sm text-slate-600">{isDemoMode
